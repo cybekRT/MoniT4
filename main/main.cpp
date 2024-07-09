@@ -60,6 +60,7 @@ extern "C" {
     lv_display_t *disp_drv;      // contains callback functions
 }
 
+uint8_t *revbuf;
 
 // typedef void (*lv_display_flush_cb_t)(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map);
 static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map)
@@ -67,20 +68,63 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
 #if DISPLAY_FULLRESH
     uint32_t w = ( area->x2 - area->x1 + 1 );
     uint32_t h = ( area->y2 - area->y1 + 1 );
-    for(unsigned a = 0; a < w * h; a++)
+
+    printf("Refr: %ld x %ld\n", w, h);
+
+    auto rotation = lv_display_get_rotation(lv_display_get_default());
+    if(rotation == LV_DISPLAY_ROTATION_0)
     {
-        auto tmp = color_map[a * 2];
-        color_map[a * 2] = color_map[a * 2 + 1];
-        color_map[a * 2 + 1] = tmp;
+        for(unsigned a = 0; a < w * h; a++)
+        {
+            revbuf[a * 2 + 0] = color_map[a * 2 + 1];
+            revbuf[a * 2 + 1] = color_map[a * 2 + 0];
+        }
     }
-    display_push_colors(area->x1, area->y1, w, h, (uint16_t *)color_map);
+    else if(rotation == LV_DISPLAY_ROTATION_180)
+    {
+        unsigned offset1, offset2;
+        for(unsigned y = 0; y < AMOLED_HEIGHT; y++)
+        {
+            for(unsigned x = 0; x < AMOLED_WIDTH; x++)
+            {
+                offset1 = y * AMOLED_WIDTH + x;
+                offset2 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + (AMOLED_WIDTH - 1 - x);
+                revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
+                revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
+            }
+        }
+    }
+    else
+    {
+        unsigned offset1, offset2;
+        for(unsigned y = 0; y < AMOLED_HEIGHT; y++)
+        {
+            for(unsigned x = 0; x < AMOLED_WIDTH; x++)
+            {
+                // unsigned offset1 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + x;
+                if(rotation == LV_DISPLAY_ROTATION_90)
+                    offset1 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + x;
+                else
+                    offset1 = y * AMOLED_WIDTH + (AMOLED_WIDTH - 1 - x);
+
+                offset2 = x * AMOLED_HEIGHT + y;
+                revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
+                revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
+            }
+        }
+    }
+
+    display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
+    // display_push_colors(area->x1, area->y1, w, h, (uint16_t *)revbuf);
     lv_disp_flush_ready( drv );
 #else
     int offsetx1 = area->x1;
     int offsetx2 = area->x2;
     int offsety1 = area->y1;
     int offsety2 = area->y2;
+    printf("Pushing colors~!\n");
     display_push_colors(offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, (uint16_t *)color_map);
+    printf("Pushed colors~!\n");
 #endif
 }
 
@@ -95,9 +139,31 @@ static void example_lvgl_touch_cb(lv_indev_t *drv, lv_indev_data_t *data)
     /* Get coordinates */
     touchpad_cnt = touch_get_data(touchpad_x, touchpad_y, 1);
 
+    auto disp = lv_display_get_default();
+    auto resh = lv_display_get_horizontal_resolution(disp);
+    auto resv = lv_display_get_vertical_resolution(disp);
+    auto resph = lv_display_get_physical_horizontal_resolution(disp);
+    auto respv = lv_display_get_physical_vertical_resolution(disp);
+
+    auto offx = lv_display_get_offset_x(disp);
+    auto offy = lv_display_get_offset_y(disp);
+
+    // printf("%ldx%ld, %ldx%ld - %ldx%ld\n", resh, resv, resph, respv, offx, offy);
+
     if (touchpad_cnt > 0) {
-        data->point.x = touchpad_x[0];
-        data->point.y = touchpad_y[0];
+        // if(lv_display_get_rotation(lv_display_get_default()) == LV_DISPLAY_ROTATION_0)
+        // {
+            printf("<touch> rot 0\n");
+            data->point.x = touchpad_x[0];
+            data->point.y = touchpad_y[0];
+        // }
+        // else
+        // {
+        //     printf("<touch> rot 90\n");
+        //     data->point.x = AMOLED_WIDTH - 1 - touchpad_y[0];
+        //     data->point.y = AMOLED_HEIGHT - 1 - touchpad_x[0];
+        // }
+        printf("<touch> [%ld x %ld]\n", data->point.x, data->point.y);
         data->state = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
@@ -149,69 +215,25 @@ extern "C" {
 
 extern "C" void app_main(void)
 {
-
-    ESP_LOGI(TAG, "------ Initialize I2C.");
     i2c_driver_init();
-
-    ESP_LOGI(TAG, "------ Initialize PMU.");
     if (!power_driver_init()) {
         ESP_LOGE(TAG, "ERROR :No find PMU ....");
     }
 
-    ESP_LOGI(TAG, "------ Initialize TOUCH.");
     touch_init();
-
-    ESP_LOGI(TAG, "------ Initialize DISPLAY.");
     display_init();
-
-
-    ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
-
-    // alloc draw buffers used by LVGL
-    // it's recommended to choose the size of the draw buffer(s) to be at least 1/10 screen sized
-#if CONFIG_SPIRAM
-
-// #if CONFIG_LILYGO_T_RGB
-//     // initialize LVGL draw buffers
-
-//     extern void *buf1;
-//     extern void *buf2;
-
-//     lv_disp_draw_buf_init(&disp_buf, buf1, buf2, DISPLAY_BUFFER_SIZE);
-// #else
     lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(DISPLAY_BUFFER_SIZE * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf1);
 
-    lv_color_t *buf2 = (lv_color_t *)heap_caps_malloc(DISPLAY_BUFFER_SIZE * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    assert(buf2);
-    //
-    // // initialize LVGL draw buffers
-    // lv_disp_draw_buf_init(&disp_buf, buf1, buf2, DISPLAY_BUFFER_SIZE);
-// #endif
-#else
-    lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(AMOLED_HEIGHT * 20 * sizeof(lv_color_t), MALLOC_CAP_DMA);
-    assert(buf1);
-    lv_color_t *buf2 = (lv_color_t *) heap_caps_malloc(AMOLED_HEIGHT * 20 * sizeof(lv_color_t), MALLOC_CAP_DMA);
-    assert(buf2);
-    lv_disp_draw_buf_init(&disp_buf, buf1, buf2, AMOLED_HEIGHT * 20);
-#endif
+    revbuf = (uint8_t *)heap_caps_malloc(DISPLAY_BUFFER_SIZE * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    assert(revbuf);
 
-    disp_drv = lv_display_create(AMOLED_HEIGHT, AMOLED_WIDTH);
+    disp_drv = lv_display_create(AMOLED_WIDTH, AMOLED_HEIGHT);
     lv_display_set_flush_cb(disp_drv, example_lvgl_flush_cb);
-    lv_display_set_buffers(disp_drv, buf1, buf2, DISPLAY_BUFFER_SIZE * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_FULL);
-    // LV_DISPLAY_RENDER_MODE_FULL;
-    lv_display_set_default(disp_drv);
-
-    // ESP_LOGI(TAG, "Register display driver to LVGL");
-    // lv_disp_drv_init(&disp_drv);
-    // disp_drv.hor_res = AMOLED_HEIGHT;
-    // disp_drv.ver_res = AMOLED_WIDTH;
-    // disp_drv.flush_cb = example_lvgl_flush_cb;
-    // disp_drv.draw_buf = &disp_buf;
-    // disp_drv.full_refresh = DISPLAY_FULLRESH;
-    // lv_disp_drv_register(&disp_drv);
+    lv_display_set_buffers(disp_drv, buf1, nullptr, DISPLAY_BUFFER_SIZE * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_DIRECT);
+    lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_90);
 
     ESP_LOGI(TAG, "Install LVGL tick timer");
     // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
@@ -226,24 +248,14 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, EXAMPLE_LVGL_TICK_PERIOD_MS * 1000));
 
-#if BOARD_HAS_TOUCH
 
     auto indev_drv = lv_indev_create();
     lv_indev_set_type(indev_drv, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev_drv, example_lvgl_touch_cb);
     lv_indev_set_display(indev_drv, disp_drv);
 
-    // ESP_LOGI(TAG, "Register touch driver to LVGL");
-    // static lv_indev_drv_t indev_drv; // Input device driver (Touch)
-    // lv_indev_drv_init(&indev_drv);
-    // indev_drv.type = LV_INDEV_TYPE_POINTER;
-    // indev_drv.read_cb = example_lvgl_touch_cb;
-    // lv_indev_drv_register(&indev_drv);
-#endif
-
     lvgl_mux = xSemaphoreCreateRecursiveMutex();
     assert(lvgl_mux);
-
 
     ESP_LOGI(TAG, "Display LVGL");
     // Lock the mutex due to the LVGL APIs are not thread-safe
@@ -251,45 +263,56 @@ extern "C" void app_main(void)
 
         auto root = lv_display_get_screen_active(disp_drv);
 
-        auto lb = lv_label_create(root);
-        lv_label_set_text(lb, "YoLo~!");
-        lv_obj_center(lb);
+        auto brot = lv_button_create(root);
+        auto brotl = lv_label_create(brot);
+        lv_label_set_text(brotl, "Rotate~!");
+        lv_obj_align(brot, LV_ALIGN_TOP_LEFT, 50, 50);
 
-        auto b = lv_button_create(root);
-        auto bl = lv_label_create(b);
-        lv_label_set_text(bl, "YoLo Button~!");
-        lv_obj_align_to(b, lb, LV_ALIGN_OUT_BOTTOM_MID, 0, 30);
-
-        auto sbr = lv_slider_create(root);
-        lv_obj_set_style_anim_duration(sbr, 2000, 0);
-        lv_slider_set_range(sbr, 0, 255);
-        lv_slider_set_value(sbr, 128, LV_ANIM_OFF);
-        lv_obj_set_width(sbr, AMOLED_HEIGHT - 100);
-        lv_obj_align(sbr, LV_ALIGN_TOP_MID, 0, 100);
-
-        auto sbr_l = [](lv_event_t * e)
+        lv_obj_add_event_cb(brot, [](lv_event_t *e)
         {
-            printf("Click~!\n");
-            auto sbr = (lv_obj_t*)lv_event_get_target(e);
-            auto v = lv_slider_get_value(sbr);
-            printf("Setting value: %ld\n", v);
-            amoled_set_brightness(v);
-        };
-        lv_obj_add_event_cb(sbr, sbr_l, LV_EVENT_VALUE_CHANGED, NULL);
+            lv_display_rotation_t rotation = lv_display_get_rotation(lv_display_get_default());
+            if(rotation == LV_DISPLAY_ROTATION_270)
+                rotation = LV_DISPLAY_ROTATION_0;
+            else
+                rotation = (lv_display_rotation_t)(int(rotation) + 1);
+            lv_display_set_rotation(lv_display_get_default(), rotation);
+        }, LV_EVENT_CLICKED, nullptr);
+
+        // auto lb = lv_label_create(root);
+        // lv_label_set_text(lb, "YoLo~!");
+        // lv_obj_center(lb);
+        //
+        // auto b = lv_button_create(root);
+        // auto bl = lv_label_create(b);
+        // lv_label_set_text(bl, "YoLo Button~!");
+        // lv_obj_align_to(b, lb, LV_ALIGN_OUT_BOTTOM_MID, 0, 30);
+        //
+        // auto sbr = lv_slider_create(root);
+        // lv_obj_set_style_anim_duration(sbr, 2000, 0);
+        // lv_slider_set_range(sbr, 0, 255);
+        // lv_slider_set_value(sbr, 128, LV_ANIM_OFF);
+        // lv_obj_set_width(sbr, AMOLED_HEIGHT - 100);
+        // lv_obj_align(sbr, LV_ALIGN_TOP_MID, 0, 100);
+        //
+        // auto sbr_l = [](lv_event_t * e)
+        // {
+        //     printf("Click~!\n");
+        //     auto sbr = (lv_obj_t*)lv_event_get_target(e);
+        //     auto v = lv_slider_get_value(sbr);
+        //     printf("Setting value: %ld\n", v);
+        //     amoled_set_brightness(v);
+        // };
+        // lv_obj_add_event_cb(sbr, sbr_l, LV_EVENT_VALUE_CHANGED, NULL);
 
         // lv_style_set_bg_color(NULL, lv_color_make(0, 0, 0));
         lv_obj_set_style_bg_color(root, lv_color_make(0, 0, 0), 0);
         // lv_obj_set_style_bg_opa(root, 100, 0);
 
-// #if   CONFIG_USE_DEMO_WIDGETS
-        // lv_demo_widgets();
-// #elif CONFIG_USE_DEMO_BENCHMARK
-        // lv_demo_benchmark();
-// #elif CONFIG_USE_DEMO_STRESS
-//         lv_demo_stress();
-// #elif CONFIG_USE_DEMO_MUSIC
-        // lv_demo_music();
-// #endif
+        // lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_90);
+
+        auto kbd = lv_keyboard_create(root);
+        lv_obj_align(kbd, LV_ALIGN_BOTTOM_MID, 0, 0);
+
         // Release the mutex
         example_lvgl_unlock();
     }

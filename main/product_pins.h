@@ -147,8 +147,8 @@
 #define BOARD_BUTTON1_PIN   (0)
 #define DEFAULT_SCK_SPEED   (36000000)
 
-#define AMOLED_WIDTH        600
-#define AMOLED_HEIGHT       450
+#define AMOLED_WIDTH        450
+#define AMOLED_HEIGHT       600
 
 #define AMOLED_EN_PIN       (9)
 

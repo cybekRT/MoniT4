@@ -6,6 +6,9 @@
  * @date      2024-01-07
  *
  */
+
+#define CONFIG_LILYGO_T4_S3_241 1
+
 #include <sdkconfig.h>
 #include "esp_err.h"
 #include "esp_log.h"
