@@ -1,18 +1,3 @@
-// #include <stdio.h>
-//
-// #include"lvgl.h"
-//
-// extern "C"
-// {
-// 	void app_main()
-// 	{
-// 		printf("YoLo~!\n");
-// 	}
-// }
-
-
-
-
 /**
  * @file      main.cpp
  * @author    Lewis He (lewishe@outlook.com)
@@ -22,15 +7,11 @@
  *
  */
 
-#include <stdio.h>
+#include <cstdio>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_timer.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_ops.h"
-#include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -39,8 +20,6 @@
 #include "touch_driver.h"
 #include "i2c_driver.h"
 #include "power_driver.h"
-#include "demos/lv_demos.h"
-// #include "tft_driver.h"
 #include "product_pins.h"
 
 
@@ -55,17 +34,13 @@ static const char *TAG = "main";
 static SemaphoreHandle_t lvgl_mux = NULL;
 
 // static lv_buffdisp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
-
-extern "C" {
-    lv_display_t *disp_drv;      // contains callback functions
-}
+lv_display_t *disp_drv;      // contains callback functions
 
 uint8_t *revbuf;
 
 // typedef void (*lv_display_flush_cb_t)(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map);
 static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map)
 {
-#if DISPLAY_FULLRESH
     uint32_t w = ( area->x2 - area->x1 + 1 );
     uint32_t h = ( area->y2 - area->y1 + 1 );
 
@@ -96,12 +71,12 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
     }
     else
     {
-        unsigned offset1, offset2;
+        unsigned offset1;
+        unsigned offset2;
         for(unsigned y = 0; y < AMOLED_HEIGHT; y++)
         {
             for(unsigned x = 0; x < AMOLED_WIDTH; x++)
             {
-                // unsigned offset1 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + x;
                 if(rotation == LV_DISPLAY_ROTATION_90)
                     offset1 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + x;
                 else
@@ -115,21 +90,10 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
     }
 
     display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
-    // display_push_colors(area->x1, area->y1, w, h, (uint16_t *)revbuf);
     lv_disp_flush_ready( drv );
-#else
-    int offsetx1 = area->x1;
-    int offsetx2 = area->x2;
-    int offsety1 = area->y1;
-    int offsety2 = area->y2;
-    printf("Pushing colors~!\n");
-    display_push_colors(offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, (uint16_t *)color_map);
-    printf("Pushed colors~!\n");
-#endif
 }
 
 
-#if BOARD_HAS_TOUCH
 static void example_lvgl_touch_cb(lv_indev_t *drv, lv_indev_data_t *data)
 {
     int16_t touchpad_x[1] = {0};
@@ -169,7 +133,6 @@ static void example_lvgl_touch_cb(lv_indev_t *drv, lv_indev_data_t *data)
         data->state = LV_INDEV_STATE_RELEASED;
     }
 }
-#endif
 
 static void example_increase_lvgl_tick(void *arg)
 {
