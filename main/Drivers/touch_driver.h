@@ -14,6 +14,7 @@
 
 #if defined(BOARD_HAS_TOUCH)
 
+esp_err_t i2c_driver_init(void);
 bool touch_init();
 uint8_t touch_get_data(int16_t *x, int16_t *y, uint8_t point_num);
 

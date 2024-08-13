@@ -11,7 +11,6 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "esp_err.h"
-#include "i2c_driver.h"
 #include "product_pins.h"
 #include "driver/gpio.h"
 
@@ -93,6 +92,7 @@ bool power_driver_init()
 
 PowersSY6970 PMU;
 
+extern i2c_master_bus_handle_t bus_handle;
 bool power_driver_init()
 {
     if (PMU.begin(bus_handle, SY6970_SLAVE_ADDRESS)) {

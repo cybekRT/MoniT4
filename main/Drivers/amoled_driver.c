@@ -15,11 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(CONFIG_LILYGO_T_AMOLED_LITE_147) || \
-    defined(CONFIG_LILYGO_T_DISPLAY_S3_AMOLED) || \
-    defined(CONFIG_LILYGO_T_DISPLAY_S3_AMOLED_TOUCH) || \
-    defined(CONFIG_LILYGO_T4_S3_241)
-
 #define SEND_BUF_SIZE           (16384)
 #define DEFAULT_SPI_HANDLER     (SPI3_HOST)
 
@@ -81,12 +76,6 @@ void display_init()
 
 static bool __init_qspi_bus()
 {
-#if CONFIG_LILYGO_T_AMOLED_LITE_147
-    pBuffer = (uint16_t *)heap_caps_malloc(AMOLED_WIDTH * AMOLED_HEIGHT * sizeof(uint16_t), MALLOC_CAP_DMA);
-    if (!pBuffer) {
-        ESP_LOGE(TAG, "ERROR:No memory use .."); return false;
-    }
-#endif
     ESP_LOGI(TAG, "============T-Display-AMOLED============");
 
     ESP_LOGI(TAG, "=====CONFIGURE======");
@@ -303,26 +292,3 @@ void display_push_colors(uint16_t x, uint16_t y, uint16_t width, uint16_t hight,
         amoled_push_buffer(data, width * hight);
     }
 }
-
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
