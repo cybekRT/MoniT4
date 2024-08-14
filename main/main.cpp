@@ -20,6 +20,7 @@
 
 #include"Display.hpp"
 #include"Views/Wifi.hpp"
+#include"Views/Dashboard.hpp"
 
 static const char *TAG = "main";
 
@@ -43,4 +44,5 @@ extern "C" void app_main(void)
 	Display::Init();
 
 	Wifi::Init();
+	Dashboard::Init();
 }

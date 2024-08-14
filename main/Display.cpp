@@ -14,7 +14,7 @@ static const char *TAG = "Display";
 #define EXAMPLE_LVGL_TICK_PERIOD_MS 2
 #define EXAMPLE_LVGL_TASK_MAX_DELAY_MS 500
 #define EXAMPLE_LVGL_TASK_MIN_DELAY_MS 1
-#define EXAMPLE_LVGL_TASK_STACK_SIZE (4 * 1024)
+#define EXAMPLE_LVGL_TASK_STACK_SIZE (8 * 1024)
 #define EXAMPLE_LVGL_TASK_PRIORITY 2
 
 lv_obj_t* modesScreen[Display::Mode::Count];
@@ -127,12 +127,16 @@ static void example_lvgl_port_task(void *arg)
 	uint32_t task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
 	while (1)
 	{
+		// ESP_LOGI(TAG, "LVGL Lock?...");
 		// Lock the mutex due to the LVGL APIs are not thread-safe
 		if (Display::Lock(-1))
 		{
+			// ESP_LOGI(TAG, "LVGL Locked~");
 			task_delay_ms = lv_timer_handler();
 			// Release the mutex
+			// ESP_LOGI(TAG, "LVGL Unlocking...");
 			Display::Unlock();
+			// ESP_LOGI(TAG, "LVGL Unlocked~");
 		}
 		if (task_delay_ms > EXAMPLE_LVGL_TASK_MAX_DELAY_MS)
 		{
@@ -142,6 +146,7 @@ static void example_lvgl_port_task(void *arg)
 		{
 			task_delay_ms = EXAMPLE_LVGL_TASK_MIN_DELAY_MS;
 		}
+		// ESP_LOGI(TAG, "LVGL sleep: %ld", task_delay_ms);
 		vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
 	}
 }
@@ -159,7 +164,7 @@ bool Display::Init()
 	disp_drv = lv_display_create(AMOLED_WIDTH, AMOLED_HEIGHT);
 	lv_display_set_flush_cb(disp_drv, example_lvgl_flush_cb);
 	lv_display_set_buffers(disp_drv, buf1, nullptr, DISPLAY_BUFFER_SIZE * sizeof(lv_color_t),
-						   LV_DISPLAY_RENDER_MODE_FULL);
+						   LV_DISPLAY_RENDER_MODE_PARTIAL);
 	lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_90);
 
 	ESP_LOGI(TAG, "Install LVGL tick timer");

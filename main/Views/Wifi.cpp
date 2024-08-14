@@ -1,5 +1,3 @@
-#include <nvs.h>
-
 #include"Wifi.hpp"
 #include"Display.hpp"
 
@@ -10,6 +8,7 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
+#include "nvs.h"
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "lvgl.h"
