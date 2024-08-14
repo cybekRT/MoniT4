@@ -11,18 +11,29 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "lvgl.h"
+#include "tcpi
 
 LV_IMAGE_DECLARE(dashboardDsc);
 #define TAG "dashboard"
 
+void DisplayLocalIP(lv_event_t* e)
+{
+	char tmp[32];
+	esp_netif_ip_info_t ipInfo;
+	esp_netif_get_ip_info(esp_netif_get_default_netif(), &ipInfo);
+
+	esp_ip4addr_ntoa(&ipInfo.ip, tmp, 32);
+}
+
 void Dashboard::Init()
 {
 	auto root = Display::GetRoot(Display::Mode::Connected);
+	lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, nullptr);
 
 	ESP_LOGI(TAG, "Dashboard 1");
-	auto iBg = lv_image_create(root);
-	lv_image_set_src(iBg, &dashboardDsc);
-	lv_obj_align(iBg, LV_ALIGN_TOP_LEFT, 0, 0);
+	auto imgBg = lv_image_create(root);
+	lv_image_set_src(imgBg, &dashboardDsc);
+	lv_obj_align(imgBg, LV_ALIGN_TOP_LEFT, 0, 0);
 
 	ESP_LOGI(TAG, "Dashboard 2");
 	auto lName = lv_label_create(root);
@@ -31,7 +42,7 @@ void Dashboard::Init()
 
 	ESP_LOGI(TAG, "Dashboard 3");
 	auto lIP = lv_label_create(root);
-	lv_label_set_text(lIP, "192.168.100.181");
+	lv_label_set_text(lIP, "---");
 	lv_obj_align(lIP, LV_ALIGN_TOP_LEFT, 361, 103);
 
 	ESP_LOGI(TAG, "Dashboard 4");
