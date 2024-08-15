@@ -33,7 +33,7 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
 	uint32_t w = (area->x2 - area->x1 + 1);
 	uint32_t h = (area->y2 - area->y1 + 1);
 
-	printf("Refr: %ld x %ld\n", w, h);
+	// printf("Refr: %ld x %ld\n", w, h);
 
 	auto rotation = lv_display_get_rotation(lv_display_get_default());
 	if (rotation == LV_DISPLAY_ROTATION_0)
@@ -164,7 +164,7 @@ bool Display::Init()
 	disp_drv = lv_display_create(AMOLED_WIDTH, AMOLED_HEIGHT);
 	lv_display_set_flush_cb(disp_drv, example_lvgl_flush_cb);
 	lv_display_set_buffers(disp_drv, buf1, nullptr, DISPLAY_BUFFER_SIZE * sizeof(lv_color_t),
-						   LV_DISPLAY_RENDER_MODE_PARTIAL);
+						   LV_DISPLAY_RENDER_MODE_DIRECT);
 	lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_90);
 
 	ESP_LOGI(TAG, "Install LVGL tick timer");
@@ -221,7 +221,7 @@ bool Display::Lock(int timeout_ms)
 	return xSemaphoreTakeRecursive(lvgl_mux, timeout_ticks) == pdTRUE;
 }
 
-void Display::Unlock(void)
+void Display::Unlock()
 {
 	xSemaphoreGiveRecursive(lvgl_mux);
 }

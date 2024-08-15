@@ -252,5 +252,5 @@ void Wifi::Init()
 	// Release the mutex
 	Display::Unlock();
 
-	xTaskCreate(WifiTask, "LVGL Wifi", 4096, lConnect, tskIDLE_PRIORITY, nullptr);
+	xTaskCreate(WifiTask, "LVGL Wifi", 4096, lConnect, tskIDLE_PRIORITY + 2, nullptr);
 }
