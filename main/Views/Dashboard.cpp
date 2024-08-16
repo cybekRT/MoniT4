@@ -164,6 +164,7 @@ void ServerTask(void*)
 		// ESP_LOGI(TAG, "Sleeping for 2s...");
 		// vTaskDelay(pdMS_TO_TICKS(2000));
 
+		jsonBufferLen = 0;
 		ESP_LOGI(TAG, "Clearing client socket");
 		shutdown(clientSock, 0);
 		close(clientSock);
