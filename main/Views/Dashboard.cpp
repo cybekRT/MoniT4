@@ -14,16 +14,23 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "lvgl.h"
+#include"cJSON.h"
 
 LV_IMAGE_DECLARE(dashboardDsc);
 #define TAG "dashboard"
 
 lv_obj_t *imgBg;
 lv_obj_t *lName;
+lv_obj_t *lUptime;
 lv_obj_t *lIP;
 lv_obj_t *barCpu;
+lv_obj_t *barRam;
+lv_obj_t *barSwap;
 
 int serverSock;
+
+char jsonBuffer[4096];
+unsigned jsonBufferLen = 0;
 
 void DisplayLocalIP(lv_event_t* e)
 {
@@ -33,6 +40,49 @@ void DisplayLocalIP(lv_event_t* e)
 
 	esp_ip4addr_ntoa(&ipInfo.ip, tmp, 32);
 	lv_label_set_text(lIP, tmp);
+}
+
+bool ParseJson(char* jsonBuffer)
+{
+	auto root = cJSON_Parse(jsonBuffer);
+	if(!root)
+		return false;
+
+	Display::Lock(-1);
+	cJSON *currentElem;
+	cJSON_ArrayForEach(currentElem, root)
+	{
+		ESP_LOGI(TAG, "Element: %s", currentElem->string);
+		if(strcmp(currentElem->string, "name") == 0)
+		{
+			lv_label_set_text(lName, currentElem->valuestring);
+		}
+		else if(strcmp(currentElem->string, "uptime") == 0)
+		{
+			lv_label_set_text_fmt(lUptime, "%d", (int)currentElem->valuedouble);
+		}
+		else if(strcmp(currentElem->string, "cpu") == 0)
+		{
+			lv_bar_set_value(barCpu, (int)currentElem->valuedouble, LV_ANIM_ON);
+		}
+		else if(strcmp(currentElem->string, "ram") == 0)
+		{
+			lv_bar_set_value(barRam, (int)currentElem->valuedouble, LV_ANIM_ON);
+		}
+		else if(strcmp(currentElem->string, "swap") == 0)
+		{
+			lv_bar_set_value(barSwap, (int)currentElem->valuedouble, LV_ANIM_ON);
+		}
+		else
+		{
+			ESP_LOGI(TAG, "Invalid tag: %s", currentElem->string);
+		}
+	}
+
+	Display::Unlock();
+
+	cJSON_Delete(root);
+	return true;
 }
 
 void ServerTask(void*)
@@ -89,15 +139,26 @@ void ServerTask(void*)
 
 		for(;;)
 		{
-			char buf[32];
-			auto bufLen = recv(clientSock, buf, 31, 0); //MSG_WAITALL
-			if(bufLen == 0)
+			// char buf[32];
+			// auto bufLen = recv(clientSock, buf, 31, 0); //MSG_WAITALL
+			auto bufLen = recv(clientSock, jsonBuffer + jsonBufferLen, sizeof(jsonBuffer) - jsonBufferLen, 0);
+			if(bufLen == 0 || bufLen + jsonBufferLen >= sizeof(jsonBuffer))
 			{
-				ESP_LOGI(TAG, "Disconnected...");
+				ESP_LOGI(TAG, "Invalid data or disconnected... %d + %d", bufLen, jsonBufferLen);
 				break;
 			}
-			buf[bufLen] = 0;
-			ESP_LOGI(TAG, "Recv: %s", buf);
+			jsonBufferLen += bufLen;
+			jsonBuffer[jsonBufferLen] = 0;
+			ESP_LOGI(TAG, "Recv: %s", jsonBuffer);
+
+			if(!ParseJson(jsonBuffer))
+			{
+				ESP_LOGI(TAG, "Invalid json...");
+				// break;
+				continue;
+			}
+
+			jsonBufferLen = 0;
 		}
 
 		// ESP_LOGI(TAG, "Sleeping for 2s...");
@@ -149,17 +210,33 @@ void InitViews()
 	lv_label_set_text(lName, "MoniT4");
 	lv_obj_align(lName, LV_ALIGN_TOP_LEFT, 361, 29);
 
+	lUptime = lv_label_create(root);
+	lv_label_set_text(lUptime, "");
+	lv_obj_align(lUptime, LV_ALIGN_TOP_LEFT, 361, 66);
+
 	ESP_LOGI(TAG, "Dashboard 3");
 	lIP = lv_label_create(root);
-	lv_label_set_text(lIP, "---");
+	lv_label_set_text(lIP, "");
 	lv_obj_align(lIP, LV_ALIGN_TOP_LEFT, 361, 103);
 
 	ESP_LOGI(TAG, "Dashboard 4");
 	barCpu = lv_bar_create(root);
 	lv_bar_set_range(barCpu, 0, 100);
-	lv_bar_set_value(barCpu, 50, LV_ANIM_ON);
+	lv_bar_set_value(barCpu, 0, LV_ANIM_OFF);
 	lv_obj_set_size(barCpu, 51, 376);
 	lv_obj_align(barCpu, LV_ALIGN_TOP_LEFT, 27, 27);
+
+	barRam = lv_bar_create(root);
+	lv_bar_set_range(barRam, 0, 100);
+	lv_bar_set_value(barRam, 0, LV_ANIM_OFF);
+	lv_obj_set_size(barRam, 51, 376);
+	lv_obj_align(barRam, LV_ALIGN_TOP_LEFT, 92, 27);
+
+	barSwap = lv_bar_create(root);
+	lv_bar_set_range(barSwap, 0, 100);
+	lv_bar_set_value(barSwap, 0, LV_ANIM_OFF);
+	lv_obj_set_size(barSwap, 51, 376);
+	lv_obj_align(barSwap, LV_ALIGN_TOP_LEFT, 157, 27);
 
 
 	ESP_LOGI(TAG, "Dashboard 5");
@@ -173,23 +250,31 @@ void InitViews()
 	lv_obj_set_style_radius(barCpu, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 	lv_obj_set_style_radius(barCpu, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
+	lv_obj_set_style_radius(barRam, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+	lv_obj_set_style_radius(barRam, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+
+	lv_obj_set_style_radius(barSwap, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+	lv_obj_set_style_radius(barSwap, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+
 	lv_obj_add_style(barCpu, &style_indic, LV_PART_INDICATOR);
+	lv_obj_add_style(barRam, &style_indic, LV_PART_INDICATOR);
+	lv_obj_add_style(barSwap, &style_indic, LV_PART_INDICATOR);
 
 
-	ESP_LOGI(TAG, "Dashboard 6");
-	lv_anim_t a;
-	lv_anim_init(&a);
-	lv_anim_set_exec_cb(&a, [](void * bar, int32_t temp)
-	{
-		// ESP_LOGI(TAG, "cb");
-		lv_bar_set_value((lv_obj_t*)bar, temp, LV_ANIM_ON);
-	});
-	lv_anim_set_duration(&a, 3000);
-	lv_anim_set_playback_duration(&a, 3000);
-	lv_anim_set_var(&a, barCpu);
-	lv_anim_set_values(&a, 0, 100);
-	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-	lv_anim_start(&a);
+	// ESP_LOGI(TAG, "Dashboard 6");
+	// lv_anim_t a;
+	// lv_anim_init(&a);
+	// lv_anim_set_exec_cb(&a, [](void * bar, int32_t temp)
+	// {
+	// 	// ESP_LOGI(TAG, "cb");
+	// 	lv_bar_set_value((lv_obj_t*)bar, temp, LV_ANIM_ON);
+	// });
+	// lv_anim_set_duration(&a, 3000);
+	// lv_anim_set_playback_duration(&a, 3000);
+	// lv_anim_set_var(&a, barCpu);
+	// lv_anim_set_values(&a, 0, 100);
+	// lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+	// lv_anim_start(&a);
 
 	Display::Unlock();
 }
