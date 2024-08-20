@@ -1,12 +1,3 @@
-/**
-* @file      main.cpp
- * @author    Lewis He (lewishe@outlook.com)
- * @license   MIT
- * @copyright Copyright (c) 2024  Shenzhen Xinyuan Electronic Technology Co., Ltd
- * @date      2024-01-07
- *
- */
-
 #include <cstdio>
 #include <nvs_flash.h>
 
