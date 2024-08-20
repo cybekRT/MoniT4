@@ -37,7 +37,7 @@ void UpdateTemperature(std::string name, int value)
 {
 	if(!displayData.temperatures.contains(name))
 	{
-		ESP_LOGI(TAG, "Invalid temperature: \"%s\" = %ld", name.c_str(), value);
+		ESP_LOGI(TAG, "Invalid temperature: \"%s\" = %d", name.c_str(), value);
 		return;
 	}
 
@@ -269,8 +269,8 @@ void InitViews()
 	ESP_LOGI(TAG, "x Size: %ldx%ld", lv_obj_get_style_width(scaleTemp, 0), lv_obj_get_style_height(scaleTemp, 0));
 
 	ESP_LOGI(TAG, "x Pos: %ldx%ld", lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0));
-	lv_obj_set_size(cpuTemp, lv_obj_get_style_width(scaleTemp, 0), 20);
-	lv_obj_set_pos(cpuTemp, lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0) + 20 * 0);
+	lv_obj_set_size(cpuTemp, lv_obj_get_style_width(scaleTemp, 0), 30);
+	lv_obj_set_pos(cpuTemp, lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0) + 30 * 0);
 	lv_bar_set_mode(cpuTemp, LV_BAR_MODE_RANGE);
 	lv_bar_set_range(cpuTemp, 0, 100);
 	lv_bar_set_value(cpuTemp, 50, LV_ANIM_OFF);
@@ -280,11 +280,24 @@ void InitViews()
 
 	auto gpuTemp = lv_bar_create(root);
 	displayData.temperatures["gpu"] = gpuTemp;
-	lv_obj_set_size(gpuTemp, lv_obj_get_style_width(scaleTemp, 0), 20);
-	lv_obj_set_pos(gpuTemp, lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0) + 20 * 1);
+	lv_obj_set_size(gpuTemp, lv_obj_get_style_width(scaleTemp, 0), 30);
+	lv_obj_set_pos(gpuTemp, lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0) + 30 * 1);
 	lv_bar_set_mode(gpuTemp, LV_BAR_MODE_RANGE);
 	lv_bar_set_range(gpuTemp, 0, 100);
 	lv_bar_set_value(gpuTemp, 50, LV_ANIM_OFF);
+
+	for(auto& itr : displayData.temperatures)
+	{
+		auto name = itr.first;
+		for(auto& c : name)
+			c = toupper(c);
+
+		auto label = lv_label_create(itr.second);
+		lv_label_set_text(label, name.c_str());
+		lv_obj_set_style_text_color(label, lv_color_make(255, 255, 255), LV_PART_MAIN);
+		// lv_obj_center(label);
+		lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 0);
+	}
 
 	// imgBg = lv_image_create(root);
 	// lv_image_set_src(imgBg, &dashboardDsc);
