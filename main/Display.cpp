@@ -194,10 +194,6 @@ bool Display::Init()
 	{
 		modesScreen[a] = lv_obj_create(nullptr);
 		lv_obj_set_size(modesScreen[a], GetWidth(), GetHeight());
-
-		auto lbl = lv_label_create(modesScreen[a]);
-		lv_label_set_text_fmt(lbl, "YoLo: %d", a);
-		lv_obj_center(lbl);
 	}
 
 	printf("Active: %p\n", lv_display_get_screen_active(lv_display_get_default()));

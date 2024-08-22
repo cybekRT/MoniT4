@@ -1,12 +1,20 @@
-//{
-//  "name": "Test~!",
-//  "cpu": 80.3,
-//  "ram": 50.0,
-//  "swap": 10.0
-//}
-
 {
-  "name": "Test~!",
+  "init": {
+    "name": "Test~!",
+    "usage": [
+      "cpu", "ram", "swap"
+    ],
+    "storage": [
+      "/", "/home"
+    ],
+    "temp": [
+      "cpu", "gpu"
+    ],
+    "network": [
+      "8.8.8.8", "10.0.2.3"
+    ]
+  },
+
   "usage": {
     "cpu": 10.0,
     "ram": 60.0,
@@ -16,12 +24,11 @@
     "/": 40.7,
     "/home": 23.9
   },
-  "temperature": {
+  "temp": {
     "cpu": 60,
     "gpu": 45
   },
   "network": {
-//    "eth0": 10,
     "8.8.8.8": 10,
     "10.0.2.3": 18
   }

@@ -14,49 +14,221 @@
 #include"lvgl.h"
 #include"cJSON.h"
 
-LV_IMAGE_DECLARE(dashboardDsc);
+// LV_IMAGE_DECLARE(dashboardDsc);
 #define TAG "dashboard"
 
-lv_obj_t *imgBg;
-lv_obj_t *lName;
-lv_obj_t *lUptime;
-lv_obj_t *lIP;
-lv_obj_t *barCpu;
-lv_obj_t *barRam;
-lv_obj_t *barSwap;
+// lv_obj_t *imgBg;
+// lv_obj_t *lName;
+// lv_obj_t *lUptime;
+// lv_obj_t *lIP;
+// lv_obj_t *barCpu;
+// lv_obj_t *barRam;
+// lv_obj_t *barSwap;
 
 int serverSock;
 
 char jsonBuffer[4096];
 unsigned jsonBufferLen = 0;
 
-Dashboard::DisplayData displayData;
+// Dashboard::DisplayData displayData;
 
-
-void UpdateTemperature(std::string name, int value)
+struct DisplayInitData
 {
-	if(!displayData.temperatures.contains(name))
+	std::string name;
+	std::vector<std::string> usage;
+	std::vector<std::string> storage;
+	std::vector<std::string> temperature;
+	std::vector<std::string> network;
+};
+
+void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displayInitData)
+{
+	Display::Lock(-1);
+
+	auto root = Display::GetRoot(Display::Mode::Connected);
+	// lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, nullptr);
+
+	/****************************** NAME ******************************/
+	auto labelNameFont = &lv_font_montserrat_14;
+	auto labelName = displayData->labelName = lv_label_create(root);
+	lv_label_set_text(labelName, displayInitData.name.c_str());
+	lv_obj_set_style_text_font(labelName, labelNameFont, LV_PART_MAIN);
+	lv_obj_align(labelName, LV_ALIGN_BOTTOM_MID, 0, 0);//-lv_font_get_line_height(labelNameFont));
+
+	labelName = lv_label_create(root);
+	lv_label_set_text(labelName, displayInitData.name.c_str());
+	lv_obj_set_style_text_font(labelName, labelNameFont, LV_PART_MAIN);
+	lv_obj_align(labelName, LV_ALIGN_TOP_MID, 0, 0);//-lv_font_get_line_height(labelNameFont));
+
+	/****************************** TEMPERATURE ******************************/
+	auto scaleTemp = displayData->scaleTemp = lv_scale_create(root);
+	lv_scale_set_mode(scaleTemp, LV_SCALE_MODE_HORIZONTAL_TOP);
+	lv_scale_set_label_show(scaleTemp, true);
+	// lv_obj_set_style_length(scaleTemp, 10, LV_PART_ITEMS);
+	lv_obj_set_style_length(scaleTemp, 5, LV_PART_INDICATOR);
+
+	ESP_LOGE(TAG, "SCALE: %ld, %ld, %ld", lv_obj_get_height(scaleTemp), lv_obj_get_style_height(scaleTemp, 0), lv_obj_get_content_height(scaleTemp));
+
+	lv_obj_set_size(scaleTemp, Display::GetWidth() - 40, 50);
+	lv_obj_set_pos(scaleTemp, 20, 0);
+
+	displayData->scaleTemp = scaleTemp;
+	displayData->scaleTempMin = 999;
+	displayData->scaleTempMax = -999;
+
+	auto tempBarStyle = &displayData->tempBarStyle;
+	lv_style_init(tempBarStyle);
+	lv_style_set_bg_opa(tempBarStyle, LV_OPA_COVER);
+	// lv_style_set_bg_color(tempBarStyle, lv_palette_main(LV_PALETTE_RED));
+	// lv_style_set_bg_grad_color(tempBarStyle, lv_palette_main(LV_PALETTE_BLUE));
+	lv_style_set_bg_grad_dir(tempBarStyle, LV_GRAD_DIR_HOR);
+
+	int barOffsetY = lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0);
+	for(auto& sensorName : displayInitData.temperature)
+	{
+		auto temp = displayData->temperatures[sensorName] = lv_bar_create(root);
+		lv_obj_set_size(temp, lv_obj_get_style_width(scaleTemp, 0), 30);
+		lv_obj_set_pos(temp, lv_obj_get_style_x(scaleTemp, 0), barOffsetY);
+		lv_bar_set_mode(temp, LV_BAR_MODE_RANGE);
+		lv_bar_set_range(temp, displayData->scaleTempMin, displayData->scaleTempMax);
+		lv_bar_set_value(temp, 0, LV_ANIM_OFF);
+		lv_obj_set_style_anim_duration(temp, 500, LV_PART_MAIN);
+
+		// lv_obj_set_style_bg_color(temp, lv_color_make(64, 0, 0), LV_PART_MAIN);
+		// lv_obj_set_style_bg_color(temp, lv_color_make(255, 0, 255), LV_PART_INDICATOR);
+		lv_obj_set_style_radius(temp, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+		lv_obj_set_style_radius(temp, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+		lv_obj_add_style(temp, tempBarStyle, LV_PART_INDICATOR);
+
+		// Add label
+		for(auto&[name, parent] : displayData->temperatures)
+		{
+			auto upperName = name;
+			for(auto& c : upperName)
+				c = (char)toupper(c);
+
+			auto label = lv_label_create(parent);
+			lv_label_set_text(label, upperName.c_str());
+			lv_obj_set_style_text_color(label, lv_color_make(255, 255, 255), LV_PART_MAIN);
+			lv_obj_center(label);
+			// lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 0);
+		}
+
+		barOffsetY += 35;
+	}
+
+	/****************************** USAGE ******************************/
+	int usageBarOffsetX = 0;
+	int usageBarOffsetY = barOffsetY + 5;
+	int usageBarWidth = 30;
+	int usageBarHeight = Display::GetHeight() - barOffsetY;
+
+	auto usageBarStyle = &displayData->usageBarStyle;
+	lv_style_init(usageBarStyle);
+	lv_style_set_bg_opa(usageBarStyle, LV_OPA_COVER);
+	lv_style_set_bg_color(usageBarStyle, lv_palette_main(LV_PALETTE_RED));
+	lv_style_set_bg_grad_color(usageBarStyle, lv_palette_main(LV_PALETTE_BLUE));
+	lv_style_set_bg_grad_dir(usageBarStyle, LV_GRAD_DIR_VER);
+
+	for(auto& sensorName : displayInitData.usage)
+	{
+		auto font = &lv_font_montserrat_14;
+
+		auto label = lv_label_create(root);
+		lv_label_set_text(label, sensorName.c_str());
+		lv_obj_set_style_text_font(label, font, LV_PART_MAIN);
+
+		int labelWidth = 0;//lv_obj_get_width(label);
+		for(auto& c : sensorName)
+			labelWidth += lv_font_get_glyph_width(font, c, 0);
+		int labelHeight = lv_font_get_line_height(font); //lv_obj_get_style_height(label, 0);
+		ESP_LOGI(TAG, "Bar label size: %dx%d, %ld", labelWidth, labelHeight, lv_obj_get_height(label));
+
+		lv_obj_set_pos(label, usageBarOffsetX + usageBarWidth / 2 - labelWidth / 2, Display::GetHeight() - labelHeight);
+
+		auto bar = displayData->usages[sensorName] = lv_bar_create(root);
+		lv_bar_set_range(bar, 0, 100);
+		lv_bar_set_value(bar, 0, LV_ANIM_OFF);
+
+		lv_obj_set_size(bar, usageBarWidth, usageBarHeight - labelHeight - 5);
+		lv_obj_set_pos(bar, usageBarOffsetX, usageBarOffsetY);
+		lv_obj_set_style_anim_duration(bar, 500, LV_PART_MAIN);
+		lv_obj_add_style(bar, usageBarStyle, LV_PART_INDICATOR);
+
+		usageBarOffsetX += usageBarWidth + 5;
+	}
+
+	Display::Unlock();
+}
+
+void UpdateTemperature(Dashboard::DisplayData *displayData, std::string name, int value)
+{
+	if(!displayData)
+	{
+		ESP_LOGE(TAG, "JSON data without init");
+		return;
+	}
+
+	if(!displayData->temperatures.contains(name))
 	{
 		ESP_LOGI(TAG, "Invalid temperature: \"%s\" = %d", name.c_str(), value);
 		return;
 	}
 
-	if(value > displayData.scaleTempMax)
-		displayData.scaleTempMax = value;
-	if(value < displayData.scaleTempMin)
-		displayData.scaleTempMin = value;
+	if(value > displayData->scaleTempMax)
+		displayData->scaleTempMax = value;
+	if(value < displayData->scaleTempMin)
+		displayData->scaleTempMin = value;
 
-	lv_scale_set_range(displayData.scaleTemp, displayData.scaleTempMin, displayData.scaleTempMax);
-	ESP_LOGI(TAG, "Temp range: <%d, %d>", displayData.scaleTempMin, displayData.scaleTempMax);
+	lv_scale_set_range(displayData->scaleTemp, displayData->scaleTempMin, displayData->scaleTempMax);
+	ESP_LOGI(TAG, "Temp range: <%d, %d>", displayData->scaleTempMin, displayData->scaleTempMax);
 
-	lv_bar_set_value(displayData.temperatures[name], value, LV_ANIM_ON);
+	int minMajor = (displayData->scaleTempMin - 9) / 10;
+	int maxMajor = (displayData->scaleTempMax + 9) / 10;
+	lv_scale_set_total_tick_count(displayData->scaleTemp, (maxMajor - minMajor) * 10 + 1);
+	ESP_LOGI(TAG, "Ticks: %d, %d, %d", minMajor, maxMajor, (maxMajor - minMajor) * 10);
+	lv_scale_set_major_tick_every(displayData->scaleTemp, 10);
+
+	for(auto& itr : displayData->temperatures)
+	{
+		lv_bar_set_range(itr.second, displayData->scaleTempMin, displayData->scaleTempMax);
+		ESP_LOGI(TAG, "Range for \"%s\" = <%d, %d>", itr.first.c_str(), displayData->scaleTempMin, displayData->scaleTempMax);
+	}
+
+	lv_bar_set_value(displayData->temperatures[name], value, LV_ANIM_ON);
 	ESP_LOGI(TAG, "Set value for \"%s\" = %d", name.c_str(), value);
 
-	for(auto& itr : displayData.temperatures)
+	int minBlue = 255 - int(255.0 / 100.0 * displayData->scaleTempMin);
+	int minRed = int(255.0 / 100.0 * displayData->scaleTempMin);
+	int maxBlue = 255 - int(255.0 / 100.0 * displayData->scaleTempMax);
+	int maxRed = int(255.0 / 100.0 * displayData->scaleTempMax);
+	ESP_LOGI(TAG, "Min: %d, %d, Max: %d, %d", minBlue, minRed, maxBlue, maxRed);
+	lv_style_set_bg_color(&displayData->tempBarStyle, lv_color_make(minRed, 0, minBlue));
+	lv_style_set_bg_grad_color(&displayData->tempBarStyle, lv_color_make(maxRed, 0, maxBlue));
+}
+
+void UpdateUsage(Dashboard::DisplayData *displayData, std::string name, int value)
+{
+	if(!displayData)
 	{
-		lv_bar_set_range(itr.second, displayData.scaleTempMin, displayData.scaleTempMax);
-		ESP_LOGI(TAG, "Range for \"%s\" = <%d, %d>", itr.first.c_str(), displayData.scaleTempMin, displayData.scaleTempMax);
+		ESP_LOGE(TAG, "JSON data without init");
+		return;
 	}
+
+	if(!displayData->usages.contains(name))
+	{
+		ESP_LOGE(TAG, "Invalid usage: \"%s\" = %d", name.c_str(), value);
+		return;
+	}
+
+	if(value < 0 || value > 100)
+	{
+		ESP_LOGE(TAG, "Invalid usage value: %d", value);
+		return;
+	}
+
+	lv_bar_set_value(displayData->usages[name], value, LV_ANIM_ON);
+	ESP_LOGI(TAG, "Set value for \"%s\" = %d", name.c_str(), value);
 }
 
 
@@ -82,7 +254,7 @@ void ClearViews()
 	// lv_bar_set_value(barSwap, 0, LV_ANIM_OFF);
 }
 
-unsigned ParseJson()
+unsigned ParseJson(Dashboard::DisplayData *displayData)
 {
 	const char *jsonRemaining;
 	auto root = cJSON_ParseWithLengthOpts(jsonBuffer, jsonBufferLen, &jsonRemaining, false);
@@ -106,7 +278,18 @@ unsigned ParseJson()
 			cJSON_ArrayForEach(currentTemp, currentElem)
 			{
 				ESP_LOGI(TAG, "Iterate for: %s", currentTemp->string);
-				UpdateTemperature(currentTemp->string, (int)currentTemp->valuedouble);
+				UpdateTemperature(displayData, currentTemp->string, (int)currentTemp->valuedouble);
+			}
+		}
+		else if(strcmp(currentElem->string, "usage") == 0)
+		{
+			ESP_LOGI(TAG, "Is \"usage\" an array: %d", cJSON_IsArray(currentElem));
+			ESP_LOGI(TAG, "Is \"usage\" an object: %d", cJSON_IsObject(currentElem));
+			cJSON *currentUsage;
+			cJSON_ArrayForEach(currentUsage, currentElem)
+			{
+				ESP_LOGI(TAG, "Iterate for: %s", currentUsage->string);
+				UpdateUsage(displayData, currentUsage->string, (int)currentUsage->valuedouble);
 			}
 		}
 		// else if(strcmp(currentElem->string, "uptime") == 0)
@@ -185,11 +368,36 @@ void ServerTask(void*)
 
 		inet_ntoa_r(clientAddr.sin_addr, clientIP, sizeof(clientIP) - 1);
 		ESP_LOGI(TAG, "Client: %s", clientIP);
-		if(Display::Lock(-1))
+		// if(Display::Lock(-1))
+		// {
+		// 	// lv_label_set_text(lIP, clientIP);
+		// 	Display::Unlock();
+		// }
+
+		Display::Lock(-1);
+		auto root = Display::GetRoot(Display::Mode::Connected);
+		for(auto id = 0; id < lv_obj_get_child_count(root); id++)
 		{
-			// lv_label_set_text(lIP, clientIP);
-			Display::Unlock();
+			auto child = lv_obj_get_child(root, id);
+			lv_obj_delete(child);
 		}
+
+		auto displayData = new Dashboard::DisplayData();
+		auto displayDataInit = DisplayInitData();
+
+		displayDataInit.name = "MoniT4";
+
+		displayDataInit.temperature.push_back("cpu");
+		// displayDataInit.temperature.push_back("gpu");
+		// displayDataInit.temperature.push_back("psu");
+
+		displayDataInit.usage.push_back("cpu");
+		displayDataInit.usage.push_back("ram");
+		displayDataInit.usage.push_back("swap");
+
+		CreateContainer(displayData, displayDataInit);
+
+		Display::Unlock();
 
 		for(;;)
 		{
@@ -204,18 +412,22 @@ void ServerTask(void*)
 			jsonBuffer[jsonBufferLen] = 0;
 			ESP_LOGI(TAG, "Recv: %s", jsonBuffer);
 
-			auto parsedLen = ParseJson();
-			if(parsedLen == 0)
+			for(;;) // Parse all jsons in buffer
 			{
-				ESP_LOGI(TAG, "Need more data...");
-				// break;
-				continue;
-			}
+				auto parsedLen = ParseJson(displayData);
+				if(parsedLen == 0)
+				{
+					ESP_LOGI(TAG, "Need more data...");
+					break;
+				}
 
-			memcpy(jsonBuffer, jsonBuffer + parsedLen, jsonBufferLen - parsedLen);
-			jsonBufferLen -= parsedLen;
-			ESP_LOGI(TAG, "Parsed: %u, Remaining: %u", parsedLen, jsonBufferLen);
+				memcpy(jsonBuffer, jsonBuffer + parsedLen, jsonBufferLen - parsedLen);
+				jsonBufferLen -= parsedLen;
+				ESP_LOGI(TAG, "Parsed: %u, Remaining: %u", parsedLen, jsonBufferLen);
+			}
 		}
+
+		delete displayData;
 
 		jsonBufferLen = 0;
 		ESP_LOGI(TAG, "Clearing client socket");
@@ -249,115 +461,10 @@ void InitSocket()
 
 void InitViews()
 {
-	Display::Lock(-1);
-
 	auto root = Display::GetRoot(Display::Mode::Connected);
-	// lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, nullptr);
-
-	auto scaleTemp = lv_scale_create(root);
-	lv_scale_set_mode(scaleTemp, LV_SCALE_MODE_HORIZONTAL_TOP);
-	lv_scale_set_label_show(scaleTemp, true);
-	lv_obj_set_size(scaleTemp, 400, 100);
-	lv_obj_set_pos(scaleTemp, 30, 10);
-
-	displayData.scaleTemp = scaleTemp;
-	displayData.scaleTempMin = 40;
-	displayData.scaleTempMax = 60;
-
-	auto cpuTemp = lv_bar_create(root);
-	displayData.temperatures["cpu"] = cpuTemp;
-	ESP_LOGI(TAG, "x Size: %ldx%ld", lv_obj_get_style_width(scaleTemp, 0), lv_obj_get_style_height(scaleTemp, 0));
-
-	ESP_LOGI(TAG, "x Pos: %ldx%ld", lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0));
-	lv_obj_set_size(cpuTemp, lv_obj_get_style_width(scaleTemp, 0), 30);
-	lv_obj_set_pos(cpuTemp, lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0) + 30 * 0);
-	lv_bar_set_mode(cpuTemp, LV_BAR_MODE_RANGE);
-	lv_bar_set_range(cpuTemp, 0, 100);
-	lv_bar_set_value(cpuTemp, 50, LV_ANIM_OFF);
-
-	lv_obj_set_style_bg_color(cpuTemp, lv_color_make(64, 0, 0), LV_PART_MAIN);
-	lv_obj_set_style_bg_color(cpuTemp, lv_color_make(255, 0, 255), LV_PART_INDICATOR);
-
-	auto gpuTemp = lv_bar_create(root);
-	displayData.temperatures["gpu"] = gpuTemp;
-	lv_obj_set_size(gpuTemp, lv_obj_get_style_width(scaleTemp, 0), 30);
-	lv_obj_set_pos(gpuTemp, lv_obj_get_style_x(scaleTemp, 0), lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0) + 30 * 1);
-	lv_bar_set_mode(gpuTemp, LV_BAR_MODE_RANGE);
-	lv_bar_set_range(gpuTemp, 0, 100);
-	lv_bar_set_value(gpuTemp, 50, LV_ANIM_OFF);
-
-	for(auto& itr : displayData.temperatures)
-	{
-		auto name = itr.first;
-		for(auto& c : name)
-			c = toupper(c);
-
-		auto label = lv_label_create(itr.second);
-		lv_label_set_text(label, name.c_str());
-		lv_obj_set_style_text_color(label, lv_color_make(255, 255, 255), LV_PART_MAIN);
-		// lv_obj_center(label);
-		lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 0);
-	}
-
-	// imgBg = lv_image_create(root);
-	// lv_image_set_src(imgBg, &dashboardDsc);
-	// lv_obj_align(imgBg, LV_ALIGN_TOP_LEFT, 0, 0);
-	//
-	// lName = lv_label_create(root);
-	// lv_label_set_text(lName, "MoniT4");
-	// lv_obj_align(lName, LV_ALIGN_TOP_LEFT, 361, 29);
-	//
-	// lUptime = lv_label_create(root);
-	// lv_label_set_text(lUptime, "");
-	// lv_obj_align(lUptime, LV_ALIGN_TOP_LEFT, 361, 66);
-	//
-	// lIP = lv_label_create(root);
-	// lv_label_set_text(lIP, "");
-	// lv_obj_align(lIP, LV_ALIGN_TOP_LEFT, 361, 103);
-	//
-	// barCpu = lv_bar_create(root);
-	// lv_bar_set_range(barCpu, 0, 100);
-	// lv_bar_set_value(barCpu, 0, LV_ANIM_OFF);
-	// lv_obj_set_size(barCpu, 51, 376);
-	// lv_obj_align(barCpu, LV_ALIGN_TOP_LEFT, 27, 27);
-	// lv_obj_set_style_anim_duration(barCpu, 500, LV_PART_MAIN);
-	//
-	// barRam = lv_bar_create(root);
-	// lv_bar_set_range(barRam, 0, 100);
-	// lv_bar_set_value(barRam, 0, LV_ANIM_OFF);
-	// lv_obj_set_size(barRam, 51, 376);
-	// lv_obj_align(barRam, LV_ALIGN_TOP_LEFT, 92, 27);
-	// lv_obj_set_style_anim_duration(barRam, 500, LV_PART_MAIN);
-	//
-	// barSwap = lv_bar_create(root);
-	// lv_bar_set_range(barSwap, 0, 100);
-	// lv_bar_set_value(barSwap, 0, LV_ANIM_OFF);
-	// lv_obj_set_size(barSwap, 51, 376);
-	// lv_obj_align(barSwap, LV_ALIGN_TOP_LEFT, 157, 27);
-	// lv_obj_set_style_anim_duration(barSwap, 500, LV_PART_MAIN);
-	//
-	//
-	// static lv_style_t style_indic;
-	// lv_style_init(&style_indic);
-	// lv_style_set_bg_opa(&style_indic, LV_OPA_COVER);
-	// lv_style_set_bg_color(&style_indic, lv_palette_main(LV_PALETTE_RED));
-	// lv_style_set_bg_grad_color(&style_indic, lv_palette_main(LV_PALETTE_BLUE));
-	// lv_style_set_bg_grad_dir(&style_indic, LV_GRAD_DIR_VER);
-	//
-	// lv_obj_set_style_radius(barCpu, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-	// lv_obj_set_style_radius(barCpu, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-	//
-	// lv_obj_set_style_radius(barRam, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-	// lv_obj_set_style_radius(barRam, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-	//
-	// lv_obj_set_style_radius(barSwap, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-	// lv_obj_set_style_radius(barSwap, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-	//
-	// lv_obj_add_style(barCpu, &style_indic, LV_PART_INDICATOR);
-	// lv_obj_add_style(barRam, &style_indic, LV_PART_INDICATOR);
-	// lv_obj_add_style(barSwap, &style_indic, LV_PART_INDICATOR);
-
-	Display::Unlock();
+	auto label = lv_label_create(root);
+	lv_label_set_text(label, "Waiting for client...");
+	lv_obj_center(label);
 }
 
 void Dashboard::Init()
