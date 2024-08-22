@@ -1,3 +1,6 @@
+#!/bin/bash
+
+#set -x
 if [[ $# -lt 1 ]]; then
 	echo "Usage: $0 ip_address {delay} {port}"
 	exit 1
@@ -21,7 +24,7 @@ fi
 JSON_INIT_STORAGE=""
 STORAGE_LIST=`df -h -t ext4 | tr -s " " | cut -d" " -f6 | tail -n +2`
 for STORAGE in $STORAGE_LIST; do
-	if [[ x"$JSON_INIT_STORAGE" != x"" ]]; then
+	if [[ "$JSON_INIT_STORAGE" != "" ]]; then
 		JSON_INIT_STORAGE="$JSON_INIT_STORAGE, "
 	fi
 	JSON_INIT_STORAGE="$JSON_INIT_STORAGE\"$STORAGE\""
@@ -31,15 +34,26 @@ JSON_INIT_STORAGE="[$JSON_INIT_STORAGE]"
 #echo $JSON_INIT_STORAGE
 #exit
 
-JSON_INIT="{\"init\": { \"name\": $NAME, \"usage\": [\"cpu\", \"ram\", \"swp\"], \"storage\": $JSON_INIT_STORAGE } }"
+JSON_INIT="{\"init\": { \"name\": \"$NAME\", \"usage\": [\"cpu\", \"ram\", \"swp\"], \"storage\": $JSON_INIT_STORAGE } }"
 
 # Print free storage
-df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6 | while read LINE; do
+JSON_STORAGE=""
+#df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6 | while read LINE; do
+while IFS= read -r LINE; do
+	if [[ "$JSON_STORAGE" != "" ]]; then
+		JSON_STORAGE="$JSON_STORAGE, "
+	fi
 	NAME=`echo $LINE | cut -d" " -f2`
 	USED=`echo $LINE | cut -d" " -f1`
 	USED=${USED::-1}
-	echo "$NAME = $USED"
-done
+
+	JSON_STORAGE="$JSON_STORAGE\"$NAME\": $USED"
+	echo $JSON_STORAGE
+	#echo "$NAME = $USED"
+done <<< `df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6`
+
+JSON_STORAGE="{$JSON_STORAGE}"
+echo $JSON_STORAGE
 
 (echo $JSON_INIT &&
 while [[ true ]]; do
