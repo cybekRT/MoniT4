@@ -37,23 +37,31 @@ JSON_INIT_STORAGE="[$JSON_INIT_STORAGE]"
 JSON_INIT="{\"init\": { \"name\": \"$NAME\", \"usage\": [\"cpu\", \"ram\", \"swp\"], \"storage\": $JSON_INIT_STORAGE } }"
 
 # Print free storage
-JSON_STORAGE=""
-#df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6 | while read LINE; do
-while IFS= read -r LINE; do
-	if [[ "$JSON_STORAGE" != "" ]]; then
-		JSON_STORAGE="$JSON_STORAGE, "
-	fi
-	NAME=`echo $LINE | cut -d" " -f2`
-	USED=`echo $LINE | cut -d" " -f1`
-	USED=${USED::-1}
+function GetStorage()
+{
+	JSON_STORAGE=""
+	#df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6 | while read LINE; do
+	while IFS= read -r LINE; do
+		if [[ "$JSON_STORAGE" != "" ]]; then
+			JSON_STORAGE="$JSON_STORAGE, "
+		fi
+		NAME=`echo $LINE | cut -d" " -f2`
+		USED=`echo $LINE | cut -d" " -f1`
+		USED=${USED::-1}
 
-	JSON_STORAGE="$JSON_STORAGE\"$NAME\": $USED"
-	echo $JSON_STORAGE
-	#echo "$NAME = $USED"
-done <<< `df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6`
+		JSON_STORAGE="$JSON_STORAGE\"$NAME\": $USED"
+		echo $JSON_STORAGE
+		#echo "$NAME = $USED"
+	done <<< `df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6`
 
-JSON_STORAGE="{$JSON_STORAGE}"
-echo $JSON_STORAGE
+	echo "{\"storage\": {$JSON_STORAGE}}"
+}
+
+YOLO=`GetStorage`
+echo "Yolo: $YOLO"
+
+#JSON_STORAGE="{$JSON_STORAGE}"
+#echo $JSON_STORAGE
 
 (echo $JSON_INIT &&
 while [[ true ]]; do
