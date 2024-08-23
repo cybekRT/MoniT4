@@ -34,7 +34,7 @@ JSON_INIT_STORAGE="[$JSON_INIT_STORAGE]"
 #echo $JSON_INIT_STORAGE
 #exit
 
-JSON_INIT="{\"init\": { \"name\": \"$NAME\", \"usage\": [\"cpu\", \"ram\", \"swp\"], \"storage\": $JSON_INIT_STORAGE } }"
+JSON_INIT="{\"init\": { \"name\": \"$NAME\", \"temperature\": [\"cpu\"], \"usage\": [\"cpu\", \"ram\", \"swp\"], \"storage\": $JSON_INIT_STORAGE, \"network\": [\"192.168.100.1\", \"10.0.2.3\", \"8.8.8.8\", \"bing.com\"] } }"
 
 # Print free storage
 function GetStorage()
@@ -50,20 +50,20 @@ function GetStorage()
 		USED=${USED::-1}
 
 		JSON_STORAGE="$JSON_STORAGE\"$NAME\": $USED"
-		echo $JSON_STORAGE
+		#echo $JSON_STORAGE
 		#echo "$NAME = $USED"
 	done <<< `df -h -t ext4 | tail -n+2 | tr -s " " | cut -d" " -f5,6`
 
 	echo "{\"storage\": {$JSON_STORAGE}}"
 }
 
-YOLO=`GetStorage`
-echo "Yolo: $YOLO"
+#YOLO=`GetStorage`
+#echo "Yolo: $YOLO"
 
 #JSON_STORAGE="{$JSON_STORAGE}"
 #echo $JSON_STORAGE
 
-(echo $JSON_INIT &&
+(echo $JSON_INIT && GetStorage &&
 while [[ true ]]; do
 	#UPTIME=`cat /proc/uptime | cut -d" " -f1`
 	CPU=`top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}'`
@@ -95,7 +95,10 @@ while [[ true ]]; do
 		NET_BING=-1
 	fi
 
-	JSON_NET="{\"network\": {\"8.8.8.8\": $NET_8888, \"192.168.100.1\": $NET_ROUTER, \"10.0.2.3\": $NET_WG, \"bing.com\": $NET_BING}}"
+	TEMP_CPU=`cat /sys/devices/pci0000\:00/0000\:00\:18.3/hwmon/hwmon2/temp2_input`
+	TEMP_CPU=$((TEMP_CPU/1000))
+
+	JSON_NET="{\"temperature\": {\"cpu\": $TEMP_CPU}, \"network\": {\"8.8.8.8\": $NET_8888, \"192.168.100.1\": $NET_ROUTER, \"10.0.2.3\": $NET_WG, \"bing.com\": $NET_BING}}"
 	echo $JSON_NET
 
 	sleep $DELAY
