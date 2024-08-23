@@ -14,21 +14,15 @@
 #include"lvgl.h"
 #include"cJSON.h"
 
-// LV_IMAGE_DECLARE(dashboardDsc);
 #define TAG "dashboard"
 
-// lv_obj_t *imgBg;
-// lv_obj_t *lName;
-// lv_obj_t *lUptime;
-// lv_obj_t *lIP;
-// lv_obj_t *barCpu;
-// lv_obj_t *barRam;
-// lv_obj_t *barSwap;
-
 int serverSock;
+lv_obj_t *tabView;
 
-char jsonBuffer[4096];
-unsigned jsonBufferLen = 0;
+// char jsonBuffer[4096];
+// unsigned jsonBufferLen = 0;
+// char jsonBufferTmp[128];
+// std::vector<char> jsonBuffer;
 
 // Dashboard::DisplayData displayData;
 
@@ -45,7 +39,20 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 {
 	Display::Lock(-1);
 
-	auto root = Display::GetRoot(Display::Mode::Connected);
+	// auto root = Display::GetRoot(Display::Mode::Connected);
+
+	auto root = displayData->root = lv_tabview_add_tab(tabView, displayInitData.name.c_str());
+	lv_tabview_set_active(tabView, lv_tabview_get_tab_count(tabView) - 1, LV_ANIM_OFF);
+	lv_obj_set_style_pad_all(root, 0, LV_PART_MAIN);
+	// lv_obj_set_style_border_width(tabView, 0, LV_PART_MAIN);
+	lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+
+	auto rootWidth = lv_obj_get_content_width(root);
+	auto rootHeight = lv_obj_get_content_height(root);
+
+	ESP_LOGI(TAG, "Root size: %ldx%ld", lv_obj_get_width(root), lv_obj_get_height(root));
+	ESP_LOGI(TAG, "Root2 size: %ldx%ld", lv_obj_get_content_width(root), lv_obj_get_content_height(root));
+
 	// lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, nullptr);
 
 	/****************************** NAME ******************************/
@@ -69,7 +76,7 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 
 	ESP_LOGE(TAG, "SCALE: %ld, %ld, %ld", lv_obj_get_height(scaleTemp), lv_obj_get_style_height(scaleTemp, 0), lv_obj_get_content_height(scaleTemp));
 
-	lv_obj_set_size(scaleTemp, Display::GetWidth() - 40, 50);
+	lv_obj_set_size(scaleTemp, rootWidth - 40, 50);
 	lv_obj_set_pos(scaleTemp, 20, 0);
 
 	displayData->scaleTemp = scaleTemp;
@@ -121,7 +128,7 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 	int usageBarOffsetX = 0;
 	int usageBarOffsetY = barOffsetY + 5;
 	int usageBarWidth = 30;
-	int usageBarHeight = Display::GetHeight() - barOffsetY;
+	int usageBarHeight = rootHeight - barOffsetY;
 
 	auto usageBarStyle = &displayData->usageBarStyle;
 	lv_style_init(usageBarStyle);
@@ -144,7 +151,7 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 		int labelHeight = lv_font_get_line_height(font); //lv_obj_get_style_height(label, 0);
 		ESP_LOGI(TAG, "Bar label size: %dx%d, %ld", labelWidth, labelHeight, lv_obj_get_height(label));
 
-		lv_obj_set_pos(label, usageBarOffsetX + usageBarWidth / 2 - labelWidth / 2, Display::GetHeight() - labelHeight);
+		lv_obj_set_pos(label, usageBarOffsetX + usageBarWidth / 2 - labelWidth / 2, rootHeight - labelHeight);
 
 		auto bar = displayData->usages[sensorName] = lv_bar_create(root);
 		lv_bar_set_range(bar, 0, 100);
@@ -156,6 +163,71 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 		lv_obj_add_style(bar, usageBarStyle, LV_PART_INDICATOR);
 
 		usageBarOffsetX += usageBarWidth + 5;
+	}
+
+	/****************************** STORAGE ******************************/
+
+	int storageBarOffsetX = usageBarOffsetX + 5;
+	int storageBarOffsetY = barOffsetY + 5;
+	int storageBarWidth = rootWidth - storageBarOffsetX - 5;
+	int storageBarHeight = 25;
+	for(auto& sensorName : displayInitData.storage)
+	{
+		auto font = &lv_font_montserrat_20;
+
+		auto bar = displayData->storages[sensorName] = lv_bar_create(root);
+		lv_bar_set_range(bar, 0, 100);
+		lv_obj_set_size(bar, storageBarWidth, storageBarHeight);
+		lv_obj_set_pos(bar, storageBarOffsetX, storageBarOffsetY);
+
+		auto labelName = lv_label_create(bar);
+		lv_label_set_text(labelName, sensorName.c_str());
+		lv_obj_set_style_text_font(labelName, font, LV_PART_MAIN);
+		lv_obj_set_style_text_color(labelName, lv_color_make(255, 255, 255), LV_PART_MAIN);
+		lv_obj_align(labelName, LV_ALIGN_LEFT_MID, 10, 0);
+
+		auto labelValue = displayData->storagesValues[sensorName] = lv_label_create(bar);
+		lv_label_set_text(labelValue, "");
+		lv_obj_set_style_text_font(labelValue, font, LV_PART_MAIN);
+		lv_obj_set_style_text_color(labelValue, lv_color_make(255, 255, 255), LV_PART_MAIN);
+		lv_obj_align(labelValue, LV_ALIGN_RIGHT_MID, -10, 0);
+
+		storageBarOffsetY += storageBarHeight + 5;
+	}
+
+	/****************************** NETWORK ******************************/
+	auto netFont = &lv_font_montserrat_32;
+	int netBarOffsetX = usageBarOffsetX + 5;//storageBarOffsetX;
+	int netBarOffsetY = storageBarOffsetY + 5;
+	int netContainerOffsetY = 5;
+	int netBarWidth = rootWidth - netBarOffsetX - 5;
+	int netBarHeight = lv_font_get_line_height(netFont);// 25;
+
+	auto netContainer = lv_obj_create(root);
+	lv_obj_set_size(netContainer, netBarWidth, 5 + 5 + (netBarHeight + 5) * displayInitData.network.size());
+	lv_obj_set_pos(netContainer, netBarOffsetX, netBarOffsetY);
+	lv_obj_set_style_bg_color(netContainer, lv_color_make(32, 32, 32), LV_PART_MAIN);
+	lv_obj_set_style_pad_all(netContainer, 0, LV_PART_MAIN);
+	// lv_obj_set_style_pad_all(netContainer, 0, LV_PART_ANY);
+	// lv_obj_set_style_border_width(netContainer, 0, LV_PART_MAIN);
+	// lv_obj_set_style_border_width(netContainer, 0, LV_PART_ANY);
+
+	for(auto& sensorName : displayInitData.network)
+	{
+		auto labelName = lv_label_create(netContainer);
+		lv_label_set_text(labelName, sensorName.c_str());
+		lv_obj_set_style_text_font(labelName, netFont, LV_PART_MAIN);
+		lv_obj_set_style_text_color(labelName, lv_color_make(255, 255, 255), LV_PART_MAIN);
+		lv_obj_align(labelName, LV_ALIGN_TOP_LEFT, 10, netContainerOffsetY);
+
+		auto labelValue = displayData->networks[sensorName] = lv_label_create(netContainer);
+		lv_label_set_text(labelValue, "---");
+		lv_obj_set_style_text_font(labelValue, netFont, LV_PART_MAIN);
+		lv_obj_set_style_text_color(labelValue, lv_color_make(255, 255, 255), LV_PART_MAIN);
+		lv_obj_align(labelValue, LV_ALIGN_TOP_RIGHT, -10, netContainerOffsetY);
+
+		netBarOffsetY += netBarHeight + 10;
+		netContainerOffsetY += netBarHeight + 5;
 	}
 
 	Display::Unlock();
@@ -231,17 +303,64 @@ void UpdateUsage(Dashboard::DisplayData *displayData, std::string name, int valu
 	ESP_LOGI(TAG, "Set value for \"%s\" = %d", name.c_str(), value);
 }
 
-
-
-void DisplayLocalIP(lv_event_t* e)
+void UpdateStorage(Dashboard::DisplayData *displayData, std::string name, int value)
 {
-	// char tmp[32];
-	// esp_netif_ip_info_t ipInfo;
-	// esp_netif_get_ip_info(esp_netif_get_default_netif(), &ipInfo);
-	//
-	// esp_ip4addr_ntoa(&ipInfo.ip, tmp, 32);
-	// lv_label_set_text(lIP, tmp);
+	if(!displayData)
+	{
+		ESP_LOGE(TAG, "JSON data without init");
+		return;
+	}
+
+	if(!displayData->storages.contains(name) || !displayData->storagesValues.contains(name))
+	{
+		ESP_LOGE(TAG, "Invalid storage \"%s\" = %d", name.c_str(), value);
+		return;
+	}
+
+	if(value < 0 || value > 100)
+	{
+		ESP_LOGE(TAG, "Invalid storage value: %d", value);
+		return;
+	}
+
+	auto storageBar = displayData->storages[name];
+	auto storageLabel = displayData->storagesValues[name];
+
+	lv_bar_set_value(storageBar, value, LV_ANIM_ON);
+	lv_label_set_text_fmt(storageLabel, "%d%%", value);
 }
+
+void UpdateNetwork(Dashboard::DisplayData *displayData, std::string name, int value)
+{
+	if(!displayData)
+	{
+		ESP_LOGE(TAG, "JSON data without init");
+		return;
+	}
+
+	if(!displayData->networks.contains(name))
+	{
+		ESP_LOGE(TAG, "Invalid network \"%s\" = %d", name.c_str(), value);
+		return;
+	}
+
+	auto networkLabel = displayData->networks[name];
+
+	if(value < 0)
+	{
+		lv_label_set_text(networkLabel, "Timeout");
+		lv_obj_set_style_text_color(networkLabel, lv_palette_main(LV_PALETTE_RED), LV_PART_MAIN);
+	}
+	else
+	{
+		lv_label_set_text_fmt(networkLabel, "%dms", value);
+		lv_obj_set_style_text_color(networkLabel, lv_color_make(255, 255, 255), LV_PART_MAIN);
+	}
+}
+
+
+
+
 
 void ClearViews()
 {
@@ -257,7 +376,8 @@ void ClearViews()
 unsigned ParseJson(Dashboard::DisplayData *displayData)
 {
 	const char *jsonRemaining;
-	auto root = cJSON_ParseWithLengthOpts(jsonBuffer, jsonBufferLen, &jsonRemaining, false);
+	auto root = cJSON_ParseWithLengthOpts(displayData->jsonBuffer.data(),
+		displayData->jsonBuffer.size(), &jsonRemaining, false);
 	if(!root)
 		return 0;
 
@@ -268,7 +388,7 @@ unsigned ParseJson(Dashboard::DisplayData *displayData)
 		ESP_LOGI(TAG, "Element: %s", currentElem->string);
 		if(strcmp(currentElem->string, "name") == 0)
 		{
-			// lv_label_set_text(lName, currentElem->valuestring);
+			lv_label_set_text(displayData->labelName, currentElem->valuestring);
 		}
 		else if(strcmp(currentElem->string, "temperature") == 0)
 		{
@@ -292,31 +412,28 @@ unsigned ParseJson(Dashboard::DisplayData *displayData)
 				UpdateUsage(displayData, currentUsage->string, (int)currentUsage->valuedouble);
 			}
 		}
-		// else if(strcmp(currentElem->string, "uptime") == 0)
-		// {
-		// 	unsigned days, hours, minutes;
-		//
-		// 	auto uptime = (int)currentElem->valuedouble / 60;
-		// 	minutes = uptime % 60;
-		// 	uptime /= 60;
-		// 	hours = uptime % 24;
-		// 	days = uptime / 24;
-		//
-		// 	// lv_label_set_text_fmt(lUptime, "%d", (int)currentElem->valuedouble);
-		// 	lv_label_set_text_fmt(lUptime, "%lud %luh %lum", days, hours, minutes);
-		// }
-		// else if(strcmp(currentElem->string, "cpu") == 0)
-		// {
-		// 	lv_bar_set_value(barCpu, (int)currentElem->valuedouble, LV_ANIM_ON);
-		// }
-		// else if(strcmp(currentElem->string, "ram") == 0)
-		// {
-		// 	lv_bar_set_value(barRam, (int)currentElem->valuedouble, LV_ANIM_ON);
-		// }
-		// else if(strcmp(currentElem->string, "swap") == 0)
-		// {
-		// 	lv_bar_set_value(barSwap, (int)currentElem->valuedouble, LV_ANIM_ON);
-		// }
+		else if(strcmp(currentElem->string, "storage") == 0)
+		{
+			ESP_LOGI(TAG, "Is \"usage\" an array: %d", cJSON_IsArray(currentElem));
+			ESP_LOGI(TAG, "Is \"usage\" an object: %d", cJSON_IsObject(currentElem));
+			cJSON *currentStorage;
+			cJSON_ArrayForEach(currentStorage, currentElem)
+			{
+				ESP_LOGI(TAG, "Iterate for: %s", currentStorage->string);
+				UpdateStorage(displayData, currentStorage->string, (int)currentStorage->valuedouble);
+			}
+		}
+		else if(strcmp(currentElem->string, "network") == 0)
+		{
+			ESP_LOGI(TAG, "Is \"usage\" an array: %d", cJSON_IsArray(currentElem));
+			ESP_LOGI(TAG, "Is \"usage\" an object: %d", cJSON_IsObject(currentElem));
+			cJSON *currentNetwork;
+			cJSON_ArrayForEach(currentNetwork, currentElem)
+			{
+				ESP_LOGI(TAG, "Iterate for: %s", currentNetwork->string);
+				UpdateNetwork(displayData, currentNetwork->string, (int)currentNetwork->valuedouble);
+			}
+		}
 		else
 		{
 			ESP_LOGI(TAG, "Invalid tag: %s", currentElem->string);
@@ -326,7 +443,7 @@ unsigned ParseJson(Dashboard::DisplayData *displayData)
 	Display::Unlock();
 
 	cJSON_Delete(root);
-	return jsonRemaining - jsonBuffer;
+	return jsonRemaining - displayData->jsonBuffer.data();
 }
 
 void ServerTask(void*)
@@ -347,7 +464,7 @@ void ServerTask(void*)
 		// Reset fields to defaults...
 		Display::Lock(-1);
 		// lv_label_set_text(lName, "MoniT4");
-		DisplayLocalIP(nullptr);
+		// DisplayLocalIP(nullptr);
 		Display::Unlock();
 
 		ESP_LOGI(TAG, "Waiting for client...");
@@ -375,12 +492,12 @@ void ServerTask(void*)
 		// }
 
 		Display::Lock(-1);
-		auto root = Display::GetRoot(Display::Mode::Connected);
-		for(auto id = 0; id < lv_obj_get_child_count(root); id++)
-		{
-			auto child = lv_obj_get_child(root, id);
-			lv_obj_delete(child);
-		}
+		// auto root = Display::GetRoot(Display::Mode::Connected);
+		// for(auto id = 0; id < lv_obj_get_child_count(root); id++)
+		// {
+		// 	auto child = lv_obj_get_child(root, id);
+		// 	lv_obj_delete(child);
+		// }
 
 		auto displayData = new Dashboard::DisplayData();
 		auto displayDataInit = DisplayInitData();
@@ -388,48 +505,71 @@ void ServerTask(void*)
 		displayDataInit.name = "MoniT4";
 
 		displayDataInit.temperature.push_back("cpu");
-		// displayDataInit.temperature.push_back("gpu");
-		// displayDataInit.temperature.push_back("psu");
+		displayDataInit.temperature.push_back("gpu");
+		displayDataInit.temperature.push_back("psu");
 
 		displayDataInit.usage.push_back("cpu");
 		displayDataInit.usage.push_back("ram");
 		displayDataInit.usage.push_back("swap");
 
+		displayDataInit.storage.push_back("/");
+		displayDataInit.storage.push_back("/boot");
+		displayDataInit.storage.push_back("/home");
+
+		displayDataInit.network.push_back("8.8.8.8");
+		displayDataInit.network.push_back("10.0.2.3");
+		displayDataInit.network.push_back("192.168.100.1");
+		displayDataInit.network.push_back("bing.com");
+
 		CreateContainer(displayData, displayDataInit);
 
 		Display::Unlock();
 
-		for(;;)
+		bool validConnection = true;
+		while(validConnection)
 		{
-			// auto bufLen = recv(clientSock, buf, 31, 0); //MSG_WAITALL
-			auto bufLen = recv(clientSock, jsonBuffer + jsonBufferLen, sizeof(jsonBuffer) - jsonBufferLen, 0);
-			if(bufLen == 0 || bufLen + jsonBufferLen >= sizeof(jsonBuffer))
+			auto bufLen = recv(clientSock, displayData->jsonBufferTmp, sizeof(displayData->jsonBufferTmp), 0);
+			if(bufLen == 0)// || bufLen + jsonBufferLen >= sizeof(jsonBuffer))
 			{
-				ESP_LOGI(TAG, "Invalid data or disconnected... %d + %d", bufLen, jsonBufferLen);
+				ESP_LOGI(TAG, "Invalid data or disconnected... %d", bufLen);
 				break;
 			}
-			jsonBufferLen += bufLen;
-			jsonBuffer[jsonBufferLen] = 0;
-			ESP_LOGI(TAG, "Recv: %s", jsonBuffer);
+
+			displayData->jsonBuffer.insert(displayData->jsonBuffer.end(),
+				displayData->jsonBufferTmp, displayData->jsonBufferTmp + bufLen);
+
+			ESP_LOGI(TAG, "Recv: %.*s", displayData->jsonBuffer.size(), displayData->jsonBuffer.data());
 
 			for(;;) // Parse all jsons in buffer
 			{
 				auto parsedLen = ParseJson(displayData);
 				if(parsedLen == 0)
 				{
-					ESP_LOGI(TAG, "Need more data...");
+					if(displayData->jsonBuffer.size() > 8192)
+					{
+						ESP_LOGE(TAG, "Too much non-parseable data in buffer: %d", displayData->jsonBuffer.size());
+						validConnection = false;
+						break;
+					}
+					else
+						ESP_LOGI(TAG, "Need more data...");
 					break;
 				}
 
-				memcpy(jsonBuffer, jsonBuffer + parsedLen, jsonBufferLen - parsedLen);
-				jsonBufferLen -= parsedLen;
-				ESP_LOGI(TAG, "Parsed: %u, Remaining: %u", parsedLen, jsonBufferLen);
+				// memcpy(jsonBuffer, jsonBuffer + parsedLen, jsonBufferLen - parsedLen);
+				// jsonBufferLen -= parsedLen;
+				displayData->jsonBuffer.erase(displayData->jsonBuffer.begin(), displayData->jsonBuffer.begin() + parsedLen);
+				ESP_LOGI(TAG, "Parsed: %u, Remaining: %u", parsedLen, displayData->jsonBuffer.size());
 			}
 		}
 
+		Display::Lock(-1);
+		lv_obj_delete(displayData->root);
+		Display::Unlock();
 		delete displayData;
 
-		jsonBufferLen = 0;
+		// jsonBufferLen = 0;
+		// displayData->jsonBuffer.clear();
 		ESP_LOGI(TAG, "Clearing client socket");
 		shutdown(clientSock, 0);
 		close(clientSock);
@@ -459,12 +599,38 @@ void InitSocket()
 	xTaskCreate(ServerTask, "Server", 4096, nullptr, tskIDLE_PRIORITY + 1, nullptr);
 }
 
+void DisplayLocalIP(lv_event_t* e)
+{
+	char tmp[32];
+	esp_netif_ip_info_t ipInfo;
+	esp_netif_get_ip_info(esp_netif_get_default_netif(), &ipInfo);
+
+	esp_ip4addr_ntoa(&ipInfo.ip, tmp, 32);
+	lv_label_set_text_fmt((lv_obj_t*)e->user_data, "Waiting for client...\nAddress: %s", tmp);
+}
+
 void InitViews()
 {
 	auto root = Display::GetRoot(Display::Mode::Connected);
-	auto label = lv_label_create(root);
+
+	tabView = lv_tabview_create(root);
+	lv_obj_set_pos(tabView, 0, 0);
+	lv_obj_set_size(tabView, Display::GetWidth(), Display::GetHeight());
+	lv_obj_set_style_pad_all(tabView, 0, LV_PART_MAIN);
+	lv_obj_set_style_border_width(tabView, 0, LV_PART_MAIN);
+
+	auto tabViewBar = lv_tabview_get_tab_bar(tabView);
+	lv_obj_add_flag(tabViewBar, LV_OBJ_FLAG_HIDDEN);
+
+	auto tabMain = lv_tabview_add_tab(tabView, "Disconnected");
+	lv_obj_set_style_pad_all(tabMain, 0, LV_PART_MAIN);
+	lv_obj_set_style_border_width(tabMain, 0, LV_PART_MAIN);
+
+	auto label = lv_label_create(tabMain);
 	lv_label_set_text(label, "Waiting for client...");
 	lv_obj_center(label);
+
+	lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, label);
 }
 
 void Dashboard::Init()

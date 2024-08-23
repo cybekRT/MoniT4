@@ -33,3 +33,50 @@
     "10.0.2.3": 18
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{"storage": {"/": 70, "/home": 99}}
+{"network": {"/": 45}}
+{"temperature": {"cpu": 50}}
+{"temperature": {"cpu": 20}}
+{"temperature": {"cpu": 50}}
+{"temperature": {"cpu": 70}}
+{"temperature": {"cpu": 99}}
+{"usage": {"yolo": 50}}
+{"usage": {"cpu": 99}}
+{"usage": {"cpu": 99}}
+{"usage": {"ram": 50}}
+{"usage": {"swap": 10}}
+{"usage": {"swap": 100}}
+{"temperature": {"cpu": 50}}
+{"temperature": {"cpu": 20}}
+{"temperature": {"cpu": 50}}
+{"temperature": {"cpu": 70}}
+{"temperature": {"cpu": 99}}
+{"storage": {"/": 50}}
+{"storage": {"/": 70, "/home": 99}}
+{"network": {"/": 45}}
+{"network": {"8.8.8.8": -1}}
+{"network": {"10.0.2.3": 45}}
+{"network": {"192.168.100.1": 13, "bing.com": 99}}
+{"temperature": {"gpu": 50, "psu": 30}}
+{"network": {"8.8.8.8": 1}}
+{"network": {"8.8.8.8": 0}}
+{"network": {"8.8.8.8": -1}}
+{"network": {"8.8.8.8": -999999999999999999999999}}
+{"network": {"8.8.8.8": 0}}
+{"network": {"8.8.8.8": -999999999999999999999999}}
+{"network": {"8.8.8.8": 1}}
+{"temperature": {"gpu": 45, "cpu": 60, "psu": 30}}
