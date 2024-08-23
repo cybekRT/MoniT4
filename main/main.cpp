@@ -32,7 +32,7 @@ extern "C" void app_main(void)
 
 	touch_init();
 	display_init();
-	amoled_set_brightness(60);
+	amoled_set_brightness(128);
 	Display::Init();
 
 	Wifi::Init();

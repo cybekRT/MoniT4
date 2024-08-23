@@ -7,14 +7,37 @@
     "storage": [
       "/", "/home"
     ],
-    "temp": [
+    "temperature": [
       "cpu", "gpu"
     ],
     "network": [
       "8.8.8.8", "10.0.2.3"
     ]
-  },
+  }
+}
 
+
+{
+  "init": {
+    "name": "Test 2",
+    "usage": [
+      "cpu", "ram"
+    ],
+    "storage": [
+      "/boot", "/home"
+    ],
+    "temperature": [
+      "cpu"
+    ],
+    "network": [
+      "1.2.3.4"
+    ]
+  }
+}
+
+
+
+{
   "usage": {
     "cpu": 10.0,
     "ram": 60.0,
@@ -24,7 +47,7 @@
     "/": 40.7,
     "/home": 23.9
   },
-  "temp": {
+  "temperature": {
     "cpu": 60,
     "gpu": 45
   },

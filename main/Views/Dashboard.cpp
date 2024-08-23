@@ -22,13 +22,6 @@
 int serverSock;
 lv_obj_t *tabView;
 
-// char jsonBuffer[4096];
-// unsigned jsonBufferLen = 0;
-// char jsonBufferTmp[128];
-// std::vector<char> jsonBuffer;
-
-// Dashboard::DisplayData displayData;
-
 struct DisplayInitData
 {
 	std::string name;
@@ -42,42 +35,56 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 {
 	Display::Lock(-1);
 
-	// auto root = Display::GetRoot(Display::Mode::Connected);
+	if(displayData->root)
+	{
+		// auto tabsCount = lv_tabview_get_tab_count(tabView);
+		// ESP_LOGI(TAG, "Disc, tabs count: %lu", tabsCount);
+
+		lv_obj_delete(displayData->root);
+		// displayData->jsonBuffer.clear();
+		displayData->root = nullptr;
+		displayData->labelName = nullptr;
+		displayData->scaleTemp = nullptr;
+		// lv_style_t tempBarStyle;
+		displayData->scaleTempMin = 999;
+		displayData->scaleTempMax = -999;
+		displayData->temperatures.clear();
+		// displayData->usageBarStyle;
+		displayData->usages.clear();
+		displayData->storages.clear();
+		displayData->storagesValues.clear();
+		displayData->networks.clear();
+
+		// lv_tabview_set_active(tabView, tabsCount - 1, LV_ANIM_ON);
+	}
 
 	auto root = displayData->root = lv_tabview_add_tab(tabView, displayInitData.name.c_str());
 	lv_tabview_set_active(tabView, lv_tabview_get_tab_count(tabView) - 1, LV_ANIM_OFF);
 	lv_obj_set_style_pad_all(root, 0, LV_PART_MAIN);
-	// lv_obj_set_style_border_width(tabView, 0, LV_PART_MAIN);
 	lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
 	auto rootWidth = lv_obj_get_content_width(root);
 	auto rootHeight = lv_obj_get_content_height(root);
 
-	ESP_LOGI(TAG, "Root size: %ldx%ld", lv_obj_get_width(root), lv_obj_get_height(root));
-	ESP_LOGI(TAG, "Root2 size: %ldx%ld", lv_obj_get_content_width(root), lv_obj_get_content_height(root));
-
-	// lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, nullptr);
-
 	/****************************** NAME ******************************/
-	auto labelNameFont = &lv_font_montserrat_14;
+
+	auto labelNameFont = &lv_font_montserrat_20;
 	auto labelName = displayData->labelName = lv_label_create(root);
 	lv_label_set_text(labelName, displayInitData.name.c_str());
 	lv_obj_set_style_text_font(labelName, labelNameFont, LV_PART_MAIN);
 	lv_obj_align(labelName, LV_ALIGN_BOTTOM_MID, 0, 0);//-lv_font_get_line_height(labelNameFont));
 
-	labelName = lv_label_create(root);
-	lv_label_set_text(labelName, displayInitData.name.c_str());
-	lv_obj_set_style_text_font(labelName, labelNameFont, LV_PART_MAIN);
-	lv_obj_align(labelName, LV_ALIGN_TOP_MID, 0, 0);//-lv_font_get_line_height(labelNameFont));
+	// labelName = lv_label_create(root);
+	// lv_label_set_text(labelName, displayInitData.name.c_str());
+	// lv_obj_set_style_text_font(labelName, labelNameFont, LV_PART_MAIN);
+	// lv_obj_align(labelName, LV_ALIGN_TOP_MID, 0, 0);//-lv_font_get_line_height(labelNameFont));
 
 	/****************************** TEMPERATURE ******************************/
+
 	auto scaleTemp = displayData->scaleTemp = lv_scale_create(root);
 	lv_scale_set_mode(scaleTemp, LV_SCALE_MODE_HORIZONTAL_TOP);
 	lv_scale_set_label_show(scaleTemp, true);
-	// lv_obj_set_style_length(scaleTemp, 10, LV_PART_ITEMS);
 	lv_obj_set_style_length(scaleTemp, 5, LV_PART_INDICATOR);
-
-	ESP_LOGE(TAG, "SCALE: %ld, %ld, %ld", lv_obj_get_height(scaleTemp), lv_obj_get_style_height(scaleTemp, 0), lv_obj_get_content_height(scaleTemp));
 
 	lv_obj_set_size(scaleTemp, rootWidth - 40, 50);
 	lv_obj_set_pos(scaleTemp, 20, 0);
@@ -87,10 +94,9 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 	displayData->scaleTempMax = -999;
 
 	auto tempBarStyle = &displayData->tempBarStyle;
+	memset(tempBarStyle, 0, sizeof(*tempBarStyle));
 	lv_style_init(tempBarStyle);
 	lv_style_set_bg_opa(tempBarStyle, LV_OPA_COVER);
-	// lv_style_set_bg_color(tempBarStyle, lv_palette_main(LV_PALETTE_RED));
-	// lv_style_set_bg_grad_color(tempBarStyle, lv_palette_main(LV_PALETTE_BLUE));
 	lv_style_set_bg_grad_dir(tempBarStyle, LV_GRAD_DIR_HOR);
 
 	int barOffsetY = lv_obj_get_style_y(scaleTemp, 0) + lv_obj_get_style_height(scaleTemp, 0);
@@ -104,8 +110,6 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 		lv_bar_set_value(temp, 0, LV_ANIM_OFF);
 		lv_obj_set_style_anim_duration(temp, 500, LV_PART_MAIN);
 
-		// lv_obj_set_style_bg_color(temp, lv_color_make(64, 0, 0), LV_PART_MAIN);
-		// lv_obj_set_style_bg_color(temp, lv_color_make(255, 0, 255), LV_PART_INDICATOR);
 		lv_obj_set_style_radius(temp, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 		lv_obj_set_style_radius(temp, 0, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 		lv_obj_add_style(temp, tempBarStyle, LV_PART_INDICATOR);
@@ -128,12 +132,14 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 	}
 
 	/****************************** USAGE ******************************/
+
 	int usageBarOffsetX = 0;
 	int usageBarOffsetY = barOffsetY + 5;
 	int usageBarWidth = 30;
 	int usageBarHeight = rootHeight - barOffsetY;
 
 	auto usageBarStyle = &displayData->usageBarStyle;
+	memset(usageBarStyle, 0, sizeof(*usageBarStyle));
 	lv_style_init(usageBarStyle);
 	lv_style_set_bg_opa(usageBarStyle, LV_OPA_COVER);
 	lv_style_set_bg_color(usageBarStyle, lv_palette_main(LV_PALETTE_RED));
@@ -199,6 +205,7 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 	}
 
 	/****************************** NETWORK ******************************/
+
 	auto netFont = &lv_font_montserrat_32;
 	int netBarOffsetX = usageBarOffsetX + 5;//storageBarOffsetX;
 	int netBarOffsetY = storageBarOffsetY + 5;
@@ -211,9 +218,6 @@ void CreateContainer(Dashboard::DisplayData *displayData, DisplayInitData &displ
 	lv_obj_set_pos(netContainer, netBarOffsetX, netBarOffsetY);
 	lv_obj_set_style_bg_color(netContainer, lv_color_make(32, 32, 32), LV_PART_MAIN);
 	lv_obj_set_style_pad_all(netContainer, 0, LV_PART_MAIN);
-	// lv_obj_set_style_pad_all(netContainer, 0, LV_PART_ANY);
-	// lv_obj_set_style_border_width(netContainer, 0, LV_PART_MAIN);
-	// lv_obj_set_style_border_width(netContainer, 0, LV_PART_ANY);
 
 	for(auto& sensorName : displayInitData.network)
 	{
@@ -361,37 +365,65 @@ void UpdateNetwork(Dashboard::DisplayData *displayData, std::string name, int va
 	}
 }
 
-
-
-
-
-void ClearViews()
-{
-	// lv_label_set_text(lName, "MoniT4");
-	// lv_label_set_text(lUptime, "");
-	// DisplayLocalIP(nullptr);
-	//
-	// lv_bar_set_value(barCpu, 0, LV_ANIM_OFF);
-	// lv_bar_set_value(barRam, 0, LV_ANIM_OFF);
-	// lv_bar_set_value(barSwap, 0, LV_ANIM_OFF);
-}
-
 unsigned ParseJson(Dashboard::DisplayData *displayData)
 {
 	const char *jsonRemaining;
 	auto root = cJSON_ParseWithLengthOpts(displayData->jsonBuffer.data(),
 		displayData->jsonBuffer.size(), &jsonRemaining, false);
 	if(!root)
+	{
+		ESP_LOGI(TAG, "!root");
 		return 0;
+	}
 
 	Display::Lock(-1);
 	cJSON *currentElem;
 	cJSON_ArrayForEach(currentElem, root)
 	{
 		ESP_LOGI(TAG, "Element: %s", currentElem->string);
-		if(strcmp(currentElem->string, "name") == 0)
+		if(strcmp(currentElem->string, "init") == 0)
 		{
-			lv_label_set_text(displayData->labelName, currentElem->valuestring);
+			auto displayDataInit = DisplayInitData();
+
+			cJSON *initGroup;
+			cJSON *initName;
+			cJSON_ArrayForEach(initGroup, currentElem)
+			{
+				if(strcmp(initGroup->string, "name") == 0)
+				{
+					displayDataInit.name = initGroup->valuestring;
+				}
+				else if(strcmp(initGroup->string, "usage") == 0)
+				{
+					cJSON_ArrayForEach(initName, initGroup)
+					{
+						displayDataInit.usage.emplace_back(initName->valuestring);
+					}
+				}
+				else if(strcmp(initGroup->string, "storage") == 0)
+				{
+					cJSON_ArrayForEach(initName, initGroup)
+					{
+						displayDataInit.storage.emplace_back(initName->valuestring);
+					}
+				}
+				else if(strcmp(initGroup->string, "temperature") == 0)
+				{
+					cJSON_ArrayForEach(initName, initGroup)
+					{
+						displayDataInit.temperature.emplace_back(initName->valuestring);
+					}
+				}
+				else if(strcmp(initGroup->string, "network") == 0)
+				{
+					cJSON_ArrayForEach(initName, initGroup)
+					{
+						displayDataInit.network.emplace_back(initName->valuestring);
+					}
+				}
+			}
+
+			CreateContainer(displayData, displayDataInit);
 		}
 		else if(strcmp(currentElem->string, "temperature") == 0)
 		{
@@ -446,7 +478,79 @@ unsigned ParseJson(Dashboard::DisplayData *displayData)
 	Display::Unlock();
 
 	cJSON_Delete(root);
+	ESP_LOGI(TAG, "After parse: %d, %d\n", (int)(jsonRemaining - displayData->jsonBuffer.data()), displayData->jsonBuffer.size());
 	return jsonRemaining - displayData->jsonBuffer.data();
+}
+
+void ClientTask(void *arg)
+{
+	int clientSock = (int)arg;
+
+	ESP_LOGI(TAG, "Created client task: %p", arg);
+
+	int keepAlive = 1;
+	int keepIdle = 300;
+	int keepInterval = 300;
+	int keepCount = 3;
+
+	setsockopt(clientSock, SOL_SOCKET, SO_KEEPALIVE, &keepAlive, sizeof(keepAlive));
+	setsockopt(clientSock, IPPROTO_TCP, TCP_KEEPIDLE, &keepIdle, sizeof(keepIdle));
+	setsockopt(clientSock, IPPROTO_TCP, TCP_KEEPINTVL, &keepInterval, sizeof(keepInterval));
+	setsockopt(clientSock, IPPROTO_TCP, TCP_KEEPCNT, &keepCount, sizeof(keepCount));
+
+	auto displayData = new Dashboard::DisplayData();
+
+	bool validConnection = true;
+	while(validConnection)
+	{
+		auto bufLen = recv(clientSock, displayData->jsonBufferTmp, sizeof(displayData->jsonBufferTmp), 0);
+		if(bufLen == 0)
+		{
+			ESP_LOGI(TAG, "Invalid data or disconnected... %d", bufLen);
+			validConnection = false;
+			break;
+		}
+
+		displayData->jsonBuffer.insert(displayData->jsonBuffer.end(),
+			displayData->jsonBufferTmp, displayData->jsonBufferTmp + bufLen);
+
+		ESP_LOGI(TAG, "Recv: %.*s", displayData->jsonBuffer.size(), displayData->jsonBuffer.data());
+
+		while(!displayData->jsonBuffer.empty()) // Parse all jsons in buffer
+		{
+			auto parsedLen = ParseJson(displayData);
+			if(parsedLen == 0)
+			{
+				if(displayData->jsonBuffer.size() > 8192)
+				{
+					ESP_LOGE(TAG, "Too much non-parseable data in buffer: %d", displayData->jsonBuffer.size());
+					validConnection = false;
+					break;
+				}
+				else
+					ESP_LOGI(TAG, "Need more data...");
+				break;
+			}
+
+			ESP_LOGI(TAG, "In buffer: %d", displayData->jsonBuffer.size());
+			displayData->jsonBuffer.erase(displayData->jsonBuffer.begin(), displayData->jsonBuffer.begin() + (int)parsedLen);
+			ESP_LOGI(TAG, "Parsed: %u, Remaining: %u", parsedLen, displayData->jsonBuffer.size());
+		}
+	}
+
+	Display::Lock(-1);
+	auto tabsCount = lv_tabview_get_tab_count(tabView);
+	ESP_LOGI(TAG, "Disc, tabs count: %lu", tabsCount);
+	lv_obj_delete(displayData->root);
+	lv_tabview_set_active(tabView, tabsCount - 2, LV_ANIM_ON);
+	Display::Unlock();
+	delete displayData;
+
+	ESP_LOGI(TAG, "Clearing client socket");
+	shutdown(clientSock, 0);
+	close(clientSock);
+
+	vTaskDelete(nullptr);
 }
 
 void ServerTask(void*)
@@ -457,19 +561,8 @@ void ServerTask(void*)
 	int clientSock;
 	char clientIP[32];
 
-	int keepAlive = 1;
-	int keepIdle = 300;
-	int keepInterval = 300;
-	int keepCount = 3;
-
 	for(;;)
 	{
-		// Reset fields to defaults...
-		Display::Lock(-1);
-		// lv_label_set_text(lName, "MoniT4");
-		// DisplayLocalIP(nullptr);
-		Display::Unlock();
-
 		ESP_LOGI(TAG, "Waiting for client...");
 		clientAddrLen = sizeof(clientAddr);
 		clientSock = accept(serverSock, (sockaddr*)&clientAddr, &clientAddrLen);
@@ -481,101 +574,10 @@ void ServerTask(void*)
 		else
 			ESP_LOGI(TAG, "Accepted~!");
 
-		setsockopt(clientSock, SOL_SOCKET, SO_KEEPALIVE, &keepAlive, sizeof(keepAlive));
-		setsockopt(clientSock, IPPROTO_TCP, TCP_KEEPIDLE, &keepIdle, sizeof(keepIdle));
-		setsockopt(clientSock, IPPROTO_TCP, TCP_KEEPINTVL, &keepInterval, sizeof(keepInterval));
-		setsockopt(clientSock, IPPROTO_TCP, TCP_KEEPCNT, &keepCount, sizeof(keepCount));
-
 		inet_ntoa_r(clientAddr.sin_addr, clientIP, sizeof(clientIP) - 1);
 		ESP_LOGI(TAG, "Client: %s", clientIP);
-		// if(Display::Lock(-1))
-		// {
-		// 	// lv_label_set_text(lIP, clientIP);
-		// 	Display::Unlock();
-		// }
 
-		Display::Lock(-1);
-		// auto root = Display::GetRoot(Display::Mode::Connected);
-		// for(auto id = 0; id < lv_obj_get_child_count(root); id++)
-		// {
-		// 	auto child = lv_obj_get_child(root, id);
-		// 	lv_obj_delete(child);
-		// }
-
-		auto displayData = new Dashboard::DisplayData();
-		auto displayDataInit = DisplayInitData();
-
-		displayDataInit.name = "MoniT4";
-
-		displayDataInit.temperature.push_back("cpu");
-		displayDataInit.temperature.push_back("gpu");
-		displayDataInit.temperature.push_back("psu");
-
-		displayDataInit.usage.push_back("cpu");
-		displayDataInit.usage.push_back("ram");
-		displayDataInit.usage.push_back("swap");
-
-		displayDataInit.storage.push_back("/");
-		displayDataInit.storage.push_back("/boot");
-		displayDataInit.storage.push_back("/home");
-
-		displayDataInit.network.push_back("8.8.8.8");
-		displayDataInit.network.push_back("10.0.2.3");
-		displayDataInit.network.push_back("192.168.100.1");
-		displayDataInit.network.push_back("bing.com");
-
-		CreateContainer(displayData, displayDataInit);
-
-		Display::Unlock();
-
-		bool validConnection = true;
-		while(validConnection)
-		{
-			auto bufLen = recv(clientSock, displayData->jsonBufferTmp, sizeof(displayData->jsonBufferTmp), 0);
-			if(bufLen == 0)// || bufLen + jsonBufferLen >= sizeof(jsonBuffer))
-			{
-				ESP_LOGI(TAG, "Invalid data or disconnected... %d", bufLen);
-				break;
-			}
-
-			displayData->jsonBuffer.insert(displayData->jsonBuffer.end(),
-				displayData->jsonBufferTmp, displayData->jsonBufferTmp + bufLen);
-
-			ESP_LOGI(TAG, "Recv: %.*s", displayData->jsonBuffer.size(), displayData->jsonBuffer.data());
-
-			for(;;) // Parse all jsons in buffer
-			{
-				auto parsedLen = ParseJson(displayData);
-				if(parsedLen == 0)
-				{
-					if(displayData->jsonBuffer.size() > 8192)
-					{
-						ESP_LOGE(TAG, "Too much non-parseable data in buffer: %d", displayData->jsonBuffer.size());
-						validConnection = false;
-						break;
-					}
-					else
-						ESP_LOGI(TAG, "Need more data...");
-					break;
-				}
-
-				// memcpy(jsonBuffer, jsonBuffer + parsedLen, jsonBufferLen - parsedLen);
-				// jsonBufferLen -= parsedLen;
-				displayData->jsonBuffer.erase(displayData->jsonBuffer.begin(), displayData->jsonBuffer.begin() + parsedLen);
-				ESP_LOGI(TAG, "Parsed: %u, Remaining: %u", parsedLen, displayData->jsonBuffer.size());
-			}
-		}
-
-		Display::Lock(-1);
-		lv_obj_delete(displayData->root);
-		Display::Unlock();
-		delete displayData;
-
-		// jsonBufferLen = 0;
-		// displayData->jsonBuffer.clear();
-		ESP_LOGI(TAG, "Clearing client socket");
-		shutdown(clientSock, 0);
-		close(clientSock);
+		xTaskCreate(ClientTask, clientIP, 4096, (void*)clientSock, tskIDLE_PRIORITY + 1, nullptr);
 	}
 }
 
@@ -597,7 +599,7 @@ void InitSocket()
 	assert(err == 0);
 
 	ESP_LOGI(TAG, "Started listening...");
-	listen(serverSock, 1);
+	listen(serverSock, 4);
 
 	xTaskCreate(ServerTask, "Server", 4096, nullptr, tskIDLE_PRIORITY + 1, nullptr);
 }
@@ -638,6 +640,7 @@ void InitViews()
 	auto tabMain = lv_tabview_add_tab(tabView, "Disconnected");
 	lv_obj_set_style_pad_all(tabMain, 0, LV_PART_MAIN);
 	lv_obj_set_style_border_width(tabMain, 0, LV_PART_MAIN);
+	lv_obj_set_style_bg_color(tabView, lv_color_make(0, 0, 0), LV_PART_MAIN);
 
 	auto label = lv_label_create(tabMain);
 	lv_label_set_text(label, "Waiting for client...");
@@ -646,17 +649,16 @@ void InitViews()
 	auto sBrightness = lv_slider_create(tabMain);
 	lv_slider_set_range(sBrightness, 0, 255);
 	lv_slider_set_mode(sBrightness, LV_SLIDER_MODE_NORMAL);
+	lv_slider_set_value(sBrightness, amoled_get_brightness(), LV_ANIM_OFF);
 	lv_obj_set_size(sBrightness, 30, Display::GetHeight() - 80);
 	lv_obj_align(sBrightness, LV_ALIGN_TOP_LEFT, 10, 40);
 
 	auto lBrightness = lv_label_create(tabMain);
-	lv_label_set_text(lBrightness, "");
+	lv_label_set_text(lBrightness, "50%");
 	lv_obj_align_to(lBrightness, sBrightness, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
 
 	lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, label);
 	lv_obj_add_event_cb(sBrightness, ChangeBrightness, LV_EVENT_VALUE_CHANGED, lBrightness);
-
-	lv_slider_set_value(sBrightness, 255, LV_ANIM_OFF);
 }
 
 void Dashboard::Init()
