@@ -1,4 +1,7 @@
 #include"Dashboard.hpp"
+
+#include <Drivers/amoled_driver.h>
+
 #include"Display.hpp"
 
 #include"freertos/FreeRTOS.h"
@@ -599,7 +602,7 @@ void InitSocket()
 	xTaskCreate(ServerTask, "Server", 4096, nullptr, tskIDLE_PRIORITY + 1, nullptr);
 }
 
-void DisplayLocalIP(lv_event_t* e)
+void DisplayLocalIP(lv_event_t *e)
 {
 	char tmp[32];
 	esp_netif_ip_info_t ipInfo;
@@ -607,6 +610,16 @@ void DisplayLocalIP(lv_event_t* e)
 
 	esp_ip4addr_ntoa(&ipInfo.ip, tmp, 32);
 	lv_label_set_text_fmt((lv_obj_t*)e->user_data, "Waiting for client...\nAddress: %s", tmp);
+}
+
+void ChangeBrightness(lv_event_t *e)
+{
+	auto slider = (lv_obj_t*)lv_event_get_target(e);
+	auto label = (lv_obj_t*)e->user_data;
+	auto value = lv_slider_get_value(slider);
+
+	amoled_set_brightness(value);
+	lv_label_set_text_fmt(label, "%.0f%%", value / 255.0 * 100.0);
 }
 
 void InitViews()
@@ -630,7 +643,20 @@ void InitViews()
 	lv_label_set_text(label, "Waiting for client...");
 	lv_obj_center(label);
 
+	auto sBrightness = lv_slider_create(tabMain);
+	lv_slider_set_range(sBrightness, 0, 255);
+	lv_slider_set_mode(sBrightness, LV_SLIDER_MODE_NORMAL);
+	lv_obj_set_size(sBrightness, 30, Display::GetHeight() - 80);
+	lv_obj_align(sBrightness, LV_ALIGN_TOP_LEFT, 10, 40);
+
+	auto lBrightness = lv_label_create(tabMain);
+	lv_label_set_text(lBrightness, "");
+	lv_obj_align_to(lBrightness, sBrightness, LV_ALIGN_OUT_RIGHT_BOTTOM, 0, 0);
+
 	lv_obj_add_event_cb(root, DisplayLocalIP, LV_EVENT_SCREEN_LOADED, label);
+	lv_obj_add_event_cb(sBrightness, ChangeBrightness, LV_EVENT_VALUE_CHANGED, lBrightness);
+
+	lv_slider_set_value(sBrightness, 255, LV_ANIM_OFF);
 }
 
 void Dashboard::Init()
