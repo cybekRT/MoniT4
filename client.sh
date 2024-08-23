@@ -68,5 +68,27 @@ while [[ true ]]; do
 	JSON="{\"usage\": $JSON_USAGE}"
 	echo $JSON
 
+	NET_8888=`ping -W1 -c1 8.8.8.8 | head -n2 | tail -n1 | cut -d= -f4 | cut -d" " -f1`
+	NET_ROUTER=`ping -W1 -c1 192.168.100.1 | head -n2 | tail -n1 | cut -d= -f4 | cut -d" " -f1`
+	NET_WG=`ping -W1 -c1 10.0.2.3 | head -n2 | tail -n1 | cut -d= -f4 | cut -d" " -f1`
+	NET_BING=`ping -W1 -c1 bing.com | head -n2 | tail -n1 | cut -d= -f4 | cut -d" " -f1`
+	#NET_BING=`ping -W1 -c1 bing.com | head -n2 | tail -n1 | cut -d" " -f8 | cut -d= -f2`
+
+	if [[ "$NET_8888" == "" ]]; then
+		NET_8888=-1
+	fi
+	if [[ "$NET_ROUTER" == "" ]]; then
+		NET_ROUTER=-1
+	fi
+	if [[ "$NET_WG" == "" ]]; then
+		NET_WG=-1
+	fi
+	if [[ "$NET_BING" == "" ]]; then
+		NET_BING=-1
+	fi
+
+	JSON_NET="{\"network\": {\"8.8.8.8\": $NET_8888, \"192.168.100.1\": $NET_ROUTER, \"10.0.2.3\": $NET_WG, \"bing.com\": $NET_BING}}"
+	echo $JSON_NET
+
 	sleep $DELAY
 done) | nc $IP $PORT
