@@ -30,9 +30,8 @@ uint8_t *revbuf;
 // typedef void (*lv_display_flush_cb_t)(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map);
 static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map)
 {
-	uint32_t w = (area->x2 - area->x1 + 1);
-	uint32_t h = (area->y2 - area->y1 + 1);
-
+	const uint32_t w = (area->x2 - area->x1 + 1);
+	const uint32_t h = (area->y2 - area->y1 + 1);
 	// printf("Refr: %ld x %ld\n", w, h);
 
 	auto rotation = lv_display_get_rotation(lv_display_get_default());
@@ -47,12 +46,12 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
 	else if (rotation == LV_DISPLAY_ROTATION_180)
 	{
 		unsigned offset1, offset2;
-		for (unsigned y = 0; y < AMOLED_HEIGHT; y++)
+		for (unsigned y = 0; y < h; y++)
 		{
-			for (unsigned x = 0; x < AMOLED_WIDTH; x++)
+			for (unsigned x = 0; x < w; x++)
 			{
-				offset1 = y * AMOLED_WIDTH + x;
-				offset2 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + (AMOLED_WIDTH - 1 - x);
+				offset1 = y * w + x;
+				offset2 = (h - 1 - y) * w + (w - 1 - x);
 				revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
 				revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
 			}
@@ -62,23 +61,25 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
 	{
 		unsigned offset1;
 		unsigned offset2;
-		for (unsigned y = 0; y < AMOLED_HEIGHT; y++)
+		for (unsigned y = 0; y < h; y++)
 		{
-			for (unsigned x = 0; x < AMOLED_WIDTH; x++)
+			for (unsigned x = 0; x < w; x++)
 			{
 				if (rotation == LV_DISPLAY_ROTATION_90)
-					offset1 = (AMOLED_HEIGHT - 1 - y) * AMOLED_WIDTH + x;
+					offset1 = (h - 1 - y) * w + x;
 				else
-					offset1 = y * AMOLED_WIDTH + (AMOLED_WIDTH - 1 - x);
+					offset1 = y * w + (w - 1 - x);
 
-				offset2 = x * AMOLED_HEIGHT + y;
+				offset2 = x * h + y;
 				revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
 				revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
 			}
 		}
 	}
 
-	display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
+//	display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
+	amoled_set_window(area->x1, area->y1, area->x2, area->y2);
+	amoled_push_buffer((uint16_t*)revbuf, w * h);
 	lv_disp_flush_ready(drv);
 }
 
