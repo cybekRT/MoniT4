@@ -35,12 +35,29 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
 	// printf("Refr: %ld x %ld\n", w, h);
 
 	auto rotation = lv_display_get_rotation(lv_display_get_default());
+	printf("P1: %ldx%ld, P2: %ldx%ld, rot: %d\n", area->x1, area->y1, area->x2, area->y2, rotation);
+	printf("Size: %lux%lu\n", w, h);
+	printf("Amoled: %dx%d\n", AMOLED_WIDTH, AMOLED_HEIGHT);
 	if (rotation == LV_DISPLAY_ROTATION_0)
 	{
-		for (unsigned a = 0; a < w * h; a++)
+		// for (unsigned a = 0; a < w * h; a++)
+		// {
+		// 	revbuf[a * 2 + 0] = color_map[a * 2 + 1];
+		// 	revbuf[a * 2 + 1] = color_map[a * 2 + 0];
+		// }
+		//
+		// amoled_set_window(area->x1, area->y1, area->x2, area->y2);
+
+		for(unsigned y = 0; y < h; y++)
 		{
-			revbuf[a * 2 + 0] = color_map[a * 2 + 1];
-			revbuf[a * 2 + 1] = color_map[a * 2 + 0];
+			for(unsigned x = 0; x < w; x++)
+			{
+				auto offset1 = y * w + x;
+				auto offset2 = (area->y1 + y) * AMOLED_WIDTH + (area->x1 + x);
+
+				revbuf[offset2 * 2 + 0] = color_map[offset1 * 2 + 1];
+				revbuf[offset2 * 2 + 1] = color_map[offset1 * 2 + 0];
+			}
 		}
 	}
 	else if (rotation == LV_DISPLAY_ROTATION_180)
@@ -56,30 +73,38 @@ static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint
 				revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
 			}
 		}
+
+		amoled_set_window(area->x1, area->y1, area->x2, area->y2);
 	}
 	else
 	{
 		unsigned offset1;
 		unsigned offset2;
-		for (unsigned y = 0; y < h; y++)
+		for (unsigned y = 0; y < w; y++)
 		{
-			for (unsigned x = 0; x < w; x++)
+			for (unsigned x = 0; x < h; x++)
 			{
 				if (rotation == LV_DISPLAY_ROTATION_90)
-					offset1 = (h - 1 - y) * w + x;
+					offset1 = (w - 1 - y) * h + x;
 				else
-					offset1 = y * w + (w - 1 - x);
+					offset1 = y * h + (h - 1 - x);
 
-				offset2 = x * h + y;
+				offset2 = x * w + y;
 				revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
 				revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
+
+				if(w != 600 && h != 450 && x == 0 && y == 0)
+					printf("[%dx%d], offset: %d, %d\n", x, y, offset1, offset2);
 			}
 		}
+
+		amoled_set_window(area->y1, area->x1, area->y2, area->x2);
 	}
 
-//	display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
-	amoled_set_window(area->x1, area->y1, area->x2, area->y2);
-	amoled_push_buffer((uint16_t*)revbuf, w * h);
+// //	display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
+// 	amoled_push_buffer((uint16_t*)revbuf, w * h);
+
+	display_push_colors(0, area->y1, AMOLED_WIDTH, h, (uint16_t *)(revbuf + area->y1 * AMOLED_WIDTH * 2));
 	lv_disp_flush_ready(drv);
 }
 
@@ -165,8 +190,8 @@ bool Display::Init()
 	disp_drv = lv_display_create(AMOLED_WIDTH, AMOLED_HEIGHT);
 	lv_display_set_flush_cb(disp_drv, example_lvgl_flush_cb);
 	lv_display_set_buffers(disp_drv, buf1, nullptr, DISPLAY_BUFFER_SIZE * sizeof(lv_color_t),
-						   LV_DISPLAY_RENDER_MODE_DIRECT);
-	lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_90);
+						   LV_DISPLAY_RENDER_MODE_PARTIAL);
+	lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_0);
 
 	ESP_LOGI(TAG, "Install LVGL tick timer");
 	// Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
