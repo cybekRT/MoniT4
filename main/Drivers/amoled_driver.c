@@ -204,6 +204,10 @@ uint8_t amoled_get_brightness()
 
 void amoled_set_window(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye)
 {
+    // I have no idea why this is required, but it's required to show all screen
+    xs += 16;
+    xe += 16;
+
     lcd_cmd_t t[3] = {
         {
             0x2A00, {

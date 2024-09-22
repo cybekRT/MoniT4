@@ -1,5 +1,7 @@
 #include"Display.hpp"
 
+#include <esp_random.h>
+
 #include "freertos/semphr.h"
 #include "driver/spi_master.h"
 #include "esp_err.h"
@@ -30,81 +32,137 @@ uint8_t *revbuf;
 // typedef void (*lv_display_flush_cb_t)(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map);
 static void example_lvgl_flush_cb(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map)
 {
-	const uint32_t w = (area->x2 - area->x1 + 1);
-	const uint32_t h = (area->y2 - area->y1 + 1);
-	// printf("Refr: %ld x %ld\n", w, h);
+	unsigned displayW = Display::GetWidth();
+
+	// memset(revbuf, 0, AMOLED_WIDTH * AMOLED_HEIGHT * 2);
+	//
+	// unsigned col = esp_random();
+	// uint16_t *buf = (uint16_t*)revbuf;
+	// for(unsigned x = 0; x < AMOLED_WIDTH; x++)
+	// {
+	// 	buf[0 * AMOLED_WIDTH + x] = col;
+	// 	buf[(AMOLED_HEIGHT - 1) * AMOLED_WIDTH + x] = col;
+	// }
+	//
+	// for(unsigned y = 0; y < AMOLED_HEIGHT; y++)
+	// {
+	// 	buf[y * AMOLED_WIDTH + 0] = col;
+	// 	buf[y * AMOLED_WIDTH + AMOLED_WIDTH - 1] = col;
+	// }
+	//
+	// amoled_set_window(0, 0, AMOLED_WIDTH - 1, AMOLED_HEIGHT - 1);
+	// amoled_push_buffer((uint16_t*)revbuf, AMOLED_WIDTH * AMOLED_HEIGHT);
+	// lv_disp_flush_ready(drv);
+	// return;
 
 	auto rotation = lv_display_get_rotation(lv_display_get_default());
-	printf("P1: %ldx%ld, P2: %ldx%ld, rot: %d\n", area->x1, area->y1, area->x2, area->y2, rotation);
-	printf("Size: %lux%lu\n", w, h);
-	printf("Amoled: %dx%d\n", AMOLED_WIDTH, AMOLED_HEIGHT);
 	if (rotation == LV_DISPLAY_ROTATION_0)
 	{
-		// for (unsigned a = 0; a < w * h; a++)
-		// {
-		// 	revbuf[a * 2 + 0] = color_map[a * 2 + 1];
-		// 	revbuf[a * 2 + 1] = color_map[a * 2 + 0];
-		// }
-		//
-		// amoled_set_window(area->x1, area->y1, area->x2, area->y2);
+		unsigned sx = (area->x1 % 2) ? area->x1 - 1 : area->x1;
+		unsigned sy = (area->y1 % 2) ? area->y1 - 1 : area->y1;
 
-		for(unsigned y = 0; y < h; y++)
+		unsigned ex = (area->x2 % 2) ? area->x2 : area->x2 + 1;
+		unsigned ey = (area->y2 % 2) ? area->y2 : area->y2 + 1;
+
+		unsigned srcW = ex - sx + 1;
+		unsigned srcH = ey - sy + 1;
+
+		unsigned offsetSrc;
+		unsigned offsetDst;
+		for (unsigned y = sy; y <= ey; y++)
 		{
-			for(unsigned x = 0; x < w; x++)
+			for (unsigned x = sx; x <= ex; x++)
 			{
-				auto offset1 = y * w + x;
-				auto offset2 = (area->y1 + y) * AMOLED_WIDTH + (area->x1 + x);
+				offsetSrc = y * displayW + x;
 
-				revbuf[offset2 * 2 + 0] = color_map[offset1 * 2 + 1];
-				revbuf[offset2 * 2 + 1] = color_map[offset1 * 2 + 0];
+				unsigned dx = x - sx;
+				unsigned dy = y - sy;
+				offsetDst = dy * srcW + dx;
+				revbuf[offsetDst * 2 + 0] = color_map[offsetSrc * 2 + 1];
+				revbuf[offsetDst * 2 + 1] = color_map[offsetSrc * 2 + 0];
 			}
 		}
+
+		amoled_set_window(sx, sy, ex, ey);
+		amoled_push_buffer((uint16_t*)revbuf, srcW * srcH);
 	}
 	else if (rotation == LV_DISPLAY_ROTATION_180)
 	{
-		unsigned offset1, offset2;
-		for (unsigned y = 0; y < h; y++)
+		unsigned sx = (area->x1 % 2) ? area->x1 - 1 : area->x1;
+		unsigned sy = (area->y1 % 2) ? area->y1 - 1 : area->y1;
+
+		unsigned ex = (area->x2 % 2) ? area->x2 : area->x2 + 1;
+		unsigned ey = (area->y2 % 2) ? area->y2 : area->y2 + 1;
+
+		unsigned srcW = ex - sx + 1;
+		unsigned srcH = ey - sy + 1;
+
+		unsigned offsetSrc;
+		unsigned offsetDst;
+		for (unsigned y = sy; y <= ey; y++)
 		{
-			for (unsigned x = 0; x < w; x++)
+			for (unsigned x = sx; x <= ex; x++)
 			{
-				offset1 = y * w + x;
-				offset2 = (h - 1 - y) * w + (w - 1 - x);
-				revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
-				revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
+				offsetSrc = y * displayW + x;
+
+				unsigned dx = srcW - 1 - (x - sx);
+				unsigned dy = srcH - 1 - (y - sy);
+				offsetDst = dy * srcW + dx;
+				revbuf[offsetDst * 2 + 0] = color_map[offsetSrc * 2 + 1];
+				revbuf[offsetDst * 2 + 1] = color_map[offsetSrc * 2 + 0];
 			}
 		}
 
-		amoled_set_window(area->x1, area->y1, area->x2, area->y2);
+		amoled_set_window(AMOLED_WIDTH - 1 - ex, AMOLED_HEIGHT - 1 - ey, AMOLED_WIDTH - 1 - sx, AMOLED_HEIGHT - 1 - sy);
+		amoled_push_buffer((uint16_t*)revbuf, srcW * srcH);
 	}
 	else
 	{
-		unsigned offset1;
-		unsigned offset2;
-		for (unsigned y = 0; y < w; y++)
+		unsigned sx = (area->x1 % 2) ? area->x1 - 1 : area->x1;
+		unsigned sy = (area->y1 % 2) ? area->y1 - 1 : area->y1;
+
+		unsigned ex = (area->x2 % 2) ? area->x2 : area->x2 + 1;
+		unsigned ey = (area->y2 % 2) ? area->y2 : area->y2 + 1;
+
+		unsigned srcW = ex - sx + 1;
+		unsigned srcH = ey - sy + 1;
+
+		unsigned offsetSrc;
+		unsigned offsetDst;
+
+		unsigned dx, dy;
+
+		for (unsigned y = sy; y <= ey; y++)
 		{
-			for (unsigned x = 0; x < h; x++)
+			for (unsigned x = sx; x <= ex; x++)
 			{
+				offsetSrc = y * displayW + x;
+
 				if (rotation == LV_DISPLAY_ROTATION_90)
-					offset1 = (w - 1 - y) * h + x;
-				else
-					offset1 = y * h + (h - 1 - x);
+				{
+					dx = y - sy;
+					dy = srcW - 1 - (x - sx);
+				}
+				else // if (rotation == LV_DISPLAY_ROTATION_270)
+				{
+					dx = srcH - 1 - (y - sy);
+					dy = x - sx;
+				}
 
-				offset2 = x * w + y;
-				revbuf[offset1 * 2 + 0] = color_map[offset2 * 2 + 1];
-				revbuf[offset1 * 2 + 1] = color_map[offset2 * 2 + 0];
-
-				if(w != 600 && h != 450 && x == 0 && y == 0)
-					printf("[%dx%d], offset: %d, %d\n", x, y, offset1, offset2);
+				offsetDst = dy * srcH + dx;
+				revbuf[offsetDst * 2 + 0] = color_map[offsetSrc * 2 + 1];
+				revbuf[offsetDst * 2 + 1] = color_map[offsetSrc * 2 + 0];
 			}
 		}
 
-		amoled_set_window(area->y1, area->x1, area->y2, area->x2);
+		if (rotation == LV_DISPLAY_ROTATION_90)
+			amoled_set_window(sy, AMOLED_HEIGHT - 1 - ex, ey, AMOLED_HEIGHT - 1 - sx);
+		else // if (rotation == LV_DISPLAY_ROTATION_270)
+			amoled_set_window(AMOLED_WIDTH - 1 - ey, sx, AMOLED_WIDTH - 1 - sy, ex);
+
+		amoled_push_buffer((uint16_t*)revbuf, srcW * srcH);
 	}
 
-// //	display_push_colors(0, 0, AMOLED_WIDTH, AMOLED_HEIGHT, (uint16_t *)revbuf);
-// 	amoled_push_buffer((uint16_t*)revbuf, w * h);
-
-	display_push_colors(0, area->y1, AMOLED_WIDTH, h, (uint16_t *)(revbuf + area->y1 * AMOLED_WIDTH * 2));
 	lv_disp_flush_ready(drv);
 }
 
@@ -115,24 +173,12 @@ static void example_lvgl_touch_cb(lv_indev_t *drv, lv_indev_data_t *data)
 	int16_t touchpad_y[1] = { 0 };
 	uint8_t touchpad_cnt = 0;
 
-	/* Get coordinates */
 	touchpad_cnt = touch_get_data(touchpad_x, touchpad_y, 1);
 
 	if (touchpad_cnt > 0)
 	{
-		// if(lv_display_get_rotation(lv_display_get_default()) == LV_DISPLAY_ROTATION_0)
-		// {
-		printf("<touch> rot 0\n");
 		data->point.x = touchpad_x[0];
 		data->point.y = touchpad_y[0];
-		// }
-		// else
-		// {
-		//     printf("<touch> rot 90\n");
-		//     data->point.x = AMOLED_WIDTH - 1 - touchpad_y[0];
-		//     data->point.y = AMOLED_HEIGHT - 1 - touchpad_x[0];
-		// }
-		printf("<touch> [%ld x %ld]\n", data->point.x, data->point.y);
 		data->state = LV_INDEV_STATE_PRESSED;
 	}
 	else
@@ -190,8 +236,8 @@ bool Display::Init()
 	disp_drv = lv_display_create(AMOLED_WIDTH, AMOLED_HEIGHT);
 	lv_display_set_flush_cb(disp_drv, example_lvgl_flush_cb);
 	lv_display_set_buffers(disp_drv, buf1, nullptr, DISPLAY_BUFFER_SIZE * sizeof(lv_color_t),
-						   LV_DISPLAY_RENDER_MODE_PARTIAL);
-	lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_0);
+						   LV_DISPLAY_RENDER_MODE_DIRECT);
+	lv_display_set_rotation(disp_drv, LV_DISPLAY_ROTATION_90);
 
 	ESP_LOGI(TAG, "Install LVGL tick timer");
 	// Tick interface for LVGL (using esp_timer to generate 2ms periodic event)

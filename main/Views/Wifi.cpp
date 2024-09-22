@@ -195,59 +195,59 @@ void Wifi::Init()
 	printf("Root: %p (%ldx%ld)\n", root, lv_obj_get_width(root), lv_obj_get_height(root));
 	lv_obj_set_style_bg_color(root, lv_color_make(0, 0, 0), 0);
 
-	// auto kbd = lv_keyboard_create(root);
-	// lv_obj_set_width(kbd, Display::GetWidth() - 50);
-	// lv_obj_align(kbd, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-	//
-	// auto SelectTextArea = [](lv_event_t *e)
-	// {
-	// 	auto target = (lv_obj_t*)lv_event_get_target(e);
-	// 	lv_keyboard_set_textarea((lv_obj_t*)e->user_data, target);
-	// };
-	//
-	// auto CopyTextFromTextArea = [](lv_event_t *e)
-	// {
-	// 	auto target = (lv_obj_t*)lv_event_get_target(e);
-	// 	auto dst = (char*)e->user_data;
-	//
-	// 	wifiChanged = true;
-	// 	strcpy(dst, lv_textarea_get_text(target));
-	// };
-	//
-	// auto ConnectToWifi = [](lv_event_t *e)
-	// {
-	// 	auto label = (lv_obj_t*)e->user_data;
-	// 	lv_label_set_text(label, "Connecting...");
-	// 	wifi_init_sta();
-	// };
-	//
-	// auto taSsid = lv_textarea_create(root);
-	// lv_textarea_set_one_line(taSsid, true);
-	// lv_textarea_set_max_length(taSsid, sizeof(wifiSsid) - 1);
-	// lv_textarea_set_text(taSsid, wifiSsid);
-	// lv_obj_set_width(taSsid, Display::GetWidth() / 2 - 20);
-	// lv_obj_align(taSsid, LV_ALIGN_TOP_LEFT, 10, 20);
-	// lv_obj_add_event_cb(taSsid, SelectTextArea, LV_EVENT_FOCUSED, kbd);
-	// lv_obj_add_event_cb(taSsid, CopyTextFromTextArea, LV_EVENT_VALUE_CHANGED, wifiSsid);
-	//
-	// auto taPwd = lv_textarea_create(root);
-	// lv_textarea_set_one_line(taPwd, true);
-	// lv_textarea_set_password_mode(taPwd, true);
-	// lv_textarea_set_max_length(taPwd, sizeof(wifiPwd) - 1);
-	// lv_textarea_set_text(taPwd, wifiPwd);
-	// lv_obj_set_width(taPwd, Display::GetWidth() / 2 - 20);
-	// lv_obj_align(taPwd, LV_ALIGN_TOP_RIGHT, -10, 20);
-	// lv_obj_add_event_cb(taPwd, SelectTextArea, LV_EVENT_FOCUSED, kbd);
-	// lv_obj_add_event_cb(taPwd, CopyTextFromTextArea, LV_EVENT_VALUE_CHANGED, wifiPwd);
+	auto kbd = lv_keyboard_create(root);
+	lv_obj_set_width(kbd, Display::GetWidth() - 50);
+	lv_obj_align(kbd, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+
+	auto SelectTextArea = [](lv_event_t *e)
+	{
+		auto target = (lv_obj_t*)lv_event_get_target(e);
+		lv_keyboard_set_textarea((lv_obj_t*)e->user_data, target);
+	};
+
+	auto CopyTextFromTextArea = [](lv_event_t *e)
+	{
+		auto target = (lv_obj_t*)lv_event_get_target(e);
+		auto dst = (char*)e->user_data;
+
+		wifiChanged = true;
+		strcpy(dst, lv_textarea_get_text(target));
+	};
+
+	auto ConnectToWifi = [](lv_event_t *e)
+	{
+		auto label = (lv_obj_t*)e->user_data;
+		lv_label_set_text(label, "Connecting...");
+		wifi_init_sta();
+	};
+
+	auto taSsid = lv_textarea_create(root);
+	lv_textarea_set_one_line(taSsid, true);
+	lv_textarea_set_max_length(taSsid, sizeof(wifiSsid) - 1);
+	lv_textarea_set_text(taSsid, wifiSsid);
+	lv_obj_set_width(taSsid, Display::GetWidth() / 2 - 20);
+	lv_obj_align(taSsid, LV_ALIGN_TOP_LEFT, 10, 20);
+	lv_obj_add_event_cb(taSsid, SelectTextArea, LV_EVENT_FOCUSED, kbd);
+	lv_obj_add_event_cb(taSsid, CopyTextFromTextArea, LV_EVENT_VALUE_CHANGED, wifiSsid);
+
+	auto taPwd = lv_textarea_create(root);
+	lv_textarea_set_one_line(taPwd, true);
+	lv_textarea_set_password_mode(taPwd, true);
+	lv_textarea_set_max_length(taPwd, sizeof(wifiPwd) - 1);
+	lv_textarea_set_text(taPwd, wifiPwd);
+	lv_obj_set_width(taPwd, Display::GetWidth() / 2 - 20);
+	lv_obj_align(taPwd, LV_ALIGN_TOP_RIGHT, -10, 20);
+	lv_obj_add_event_cb(taPwd, SelectTextArea, LV_EVENT_FOCUSED, kbd);
+	lv_obj_add_event_cb(taPwd, CopyTextFromTextArea, LV_EVENT_VALUE_CHANGED, wifiPwd);
 
 	auto bConnect = lv_button_create(root);
 	auto lConnect = lv_label_create(bConnect);
 	lv_obj_center(lConnect);
 	lv_label_set_text(lConnect, "Connect~");
 	lv_obj_set_width(bConnect, Display::GetWidth() / 2);
-	auto bConnectYOff = 50;//lv_obj_get_y(taSsid) + lv_obj_get_height(taSsid) + 10;
+	auto bConnectYOff = lv_obj_get_y(taSsid) + lv_obj_get_height(taSsid) + 10;
 	lv_obj_align(bConnect, LV_ALIGN_TOP_MID, 0, bConnectYOff);
-	// lv_obj_add_event_cb(bConnect, ConnectToWifi, LV_EVENT_CLICKED, lConnect);
+	lv_obj_add_event_cb(bConnect, ConnectToWifi, LV_EVENT_CLICKED, lConnect);
 
 	// Release the mutex
 	Display::Unlock();
